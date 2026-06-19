@@ -6,7 +6,7 @@ Premium furniture receiving, storage, delivery, and installation platform for in
 
 - **Frontend:** React 19 + Vite + Tailwind CSS v4 + PWA (offline-capable)
 - **Backend:** NestJS + TypeORM + JWT Auth
-- **Database:** MySQL 8
+- **Database:** PostgreSQL 16 (local dev); MySQL 8 supported via `DB_TYPE=mysql`
 
 ## Features
 
@@ -40,9 +40,9 @@ cp .env.example .env
 cp backend/.env.example backend/.env
 # Edit both files: set DB_PASSWORD (same value) and DEV_ADMIN_PASSWORD for demo logins
 
-# 1. Start MySQL
+# 1. Start database (PostgreSQL by default — set DB_TYPE=mysql in backend/.env for MySQL)
 npm run db:setup
-# Uses Homebrew MySQL on Mac, or Docker if available
+# Uses Docker Compose postgres (or Homebrew PostgreSQL on Mac)
 
 # 2. Backend
 cd backend && npm install && npm run start:dev

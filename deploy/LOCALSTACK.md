@@ -1,6 +1,6 @@
 # LocalStack local deployment
 
-Run the app locally with **LocalStack** emulating production AWS services (S3, Secrets Manager). MySQL, Mailpit, and optional Postgres stay on the existing `docker-compose.yml` services — RDS is not emulated; use local MySQL instead.
+Run the app locally with **LocalStack** emulating production AWS services (S3, Secrets Manager). PostgreSQL, Mailpit, and LocalStack use the existing `docker-compose.yml` services — RDS is not emulated; use local PostgreSQL instead.
 
 **Entry point:** nginx listens on **port 80** at `http://local.whiteglovesource.com`. Frontend (Vite) and API run on internal Docker ports only — no `:5173` or `:3000` in the browser.
 
@@ -14,7 +14,7 @@ Browser → http://local.whiteglovesource.com:80
          └── /api/* → wgs-api:3000 (NestJS, internal)
 
 wgs-api → host.docker.internal:4566 (LocalStack S3 / Secrets Manager)
-wgs-api → host.docker.internal:3306 (MySQL)
+wgs-api → host.docker.internal:5432 (PostgreSQL)
 ```
 
 ## What mirrors production
@@ -23,7 +23,7 @@ wgs-api → host.docker.internal:3306 (MySQL)
 |------------------------|-------|
 | S3 bucket (`content/`, `uploads/`, `backups/`) | LocalStack S3 (`wgs-local-app`) |
 | Secrets Manager (`wgs/db`, `wgs/jwt`) | LocalStack Secrets Manager |
-| RDS MySQL | Docker MySQL (`docker-compose.yml`) |
+| RDS PostgreSQL | Docker PostgreSQL (`docker-compose.yml`) |
 | IAM instance role for S3 | Static `test`/`test` credentials + `AWS_ENDPOINT_URL` |
 | nginx reverse proxy on :80 | `wgs-nginx` container (`80:80`) |
 | SSM deploy, EC2, Elastic IP | Not used locally |
@@ -60,8 +60,8 @@ Infra only (skip app containers):
 ## Manual steps
 
 ```bash
-# 1. Start dependencies
-docker compose -f docker-compose.yml -f docker-compose.localstack.yml up -d
+# 1. Start dependencies (PostgreSQL + LocalStack + Mailpit — no MySQL)
+docker compose -f docker-compose.yml -f docker-compose.localstack.yml up -d postgres mailpit localstack
 
 # 2. Create bucket, secrets, seed CMS content/
 ./scripts/localstack-init.sh
@@ -88,13 +88,17 @@ Copy `.env.localstack.example` to `.env.localstack`. Key values:
 | `AWS_ENDPOINT_URL` | `http://localhost:4566` | Host scripts / CLI only |
 | `S3_PUBLIC_BASE_URL` | `http://localhost:4566/wgs-local-app` | Path-style object URLs (optional) |
 | `CORS_ORIGIN` | `http://local.whiteglovesource.com` | Same-origin via nginx (no port) |
+| `DB_TYPE` | `postgres` | Matches local dev database |
+| `DB_PORT` | `5432` | PostgreSQL on host |
 | `PORT` | `3000` | API internal port (nginx proxies `/api`) |
 
 `deploy/docker-compose.localstack.yml` overrides for containers:
 
 - `AWS_ENDPOINT_URL=http://host.docker.internal:4566`
 - `S3_PUBLIC_BASE_URL=http://host.docker.internal:4566/wgs-local-app`
+- `DB_TYPE=postgres`
 - `DB_HOST=host.docker.internal`
+- `DB_PORT=5432`
 - `SMTP_HOST=host.docker.internal`
 
 LocalStack is **not** exposed to the browser — only the API talks to it.
@@ -177,7 +181,7 @@ npm run localstack:init
 ## npm scripts
 
 ```bash
-npm run localstack:up      # docker compose up (mysql + localstack + mailpit + postgres)
+npm run localstack:up      # docker compose up (postgres + localstack + mailpit)
 npm run localstack:init    # bucket + secrets + content seed
 npm run localstack:deploy  # full deploy-localstack.sh
 ```
@@ -188,7 +192,6 @@ npm run localstack:deploy  # full deploy-localstack.sh
 - **No SSM / blue-green / EIP** — single Docker stack on the host.
 - **S3 URLs** — LocalStack path-style URLs differ from `*.s3.amazonaws.com`; file downloads still go through authenticated API routes.
 - **Secrets Manager** — created for parity with `user-data.sh`; the app reads DB/JWT from `.env` directly in local dev (not fetched at runtime).
-- **PostgreSQL cutover** — optional Postgres container exists in compose; set `DB_TYPE=postgres` in `.env.localstack` if testing PG migration locally.
 
 ## Files
 

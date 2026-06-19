@@ -3,7 +3,7 @@
 #
 # Usage:
 #   ./deploy/scripts/deploy-localstack.sh              # infra + init + DB + app (nginx :80)
-#   ./deploy/scripts/deploy-localstack.sh --infra-only # skip app containers (MySQL/LocalStack only)
+#   ./deploy/scripts/deploy-localstack.sh --infra-only # skip app containers (Postgres/LocalStack only)
 #   ./deploy/scripts/deploy-localstack.sh --backend    # copy .env.localstack -> backend/.env
 #
 # Prerequisites: Docker, AWS CLI v2 (or pip install localstack[aws] for awslocal), jq, curl
@@ -66,7 +66,9 @@ if ! command -v jq &>/dev/null; then
   exit 1
 fi
 
-echo "==> Starting MySQL, Mailpit, Postgres, and LocalStack ..."
+LOCALSTACK_SERVICES=(postgres mailpit localstack)
+
+echo "==> Starting PostgreSQL, Mailpit, and LocalStack ..."
 LOCALSTACK_ENDPOINT="${LOCALSTACK_ENDPOINT:-http://localhost:4566}"
 if curl -sf "${LOCALSTACK_ENDPOINT}/_localstack/health" >/dev/null 2>&1; then
   echo "    LocalStack already running at ${LOCALSTACK_ENDPOINT} — starting DB/Mailpit only."
@@ -79,37 +81,34 @@ if curl -sf "${LOCALSTACK_ENDPOINT}/_localstack/health" >/dev/null 2>&1; then
       echo ""
     fi
   fi
-  docker compose -f docker-compose.yml up -d
+  export DB_PASSWORD
+  export MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-local-dev-unused}"
+  docker compose -f docker-compose.yml up -d postgres mailpit
 else
-  docker compose -f docker-compose.yml -f docker-compose.localstack.yml up -d
+  export DB_PASSWORD
+  export MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-local-dev-unused}"
+  docker compose -f docker-compose.yml -f docker-compose.localstack.yml up -d "${LOCALSTACK_SERVICES[@]}"
 fi
 
 chmod +x "$ROOT/scripts/localstack-init.sh"
 "$ROOT/scripts/localstack-init.sh"
 
-echo "==> Setting up MySQL database ..."
-if command -v mysql &>/dev/null; then
-  MYSQL_ROOT_PASS="${MYSQL_ROOT_PASSWORD:-}"
-  if [[ -n "$MYSQL_ROOT_PASS" ]]; then
-    mysql -h 127.0.0.1 -P 3306 -u root -p"${MYSQL_ROOT_PASS}" <<SQL 2>/dev/null || \
-    mysql -h 127.0.0.1 -P 3306 -u root <<SQL
-CREATE DATABASE IF NOT EXISTS white_glove_delivery;
-CREATE USER IF NOT EXISTS 'wgds'@'%' IDENTIFIED BY '${DB_PASSWORD}';
-GRANT ALL PRIVILEGES ON white_glove_delivery.* TO 'wgds'@'%';
-FLUSH PRIVILEGES;
-SQL
-  else
-    mysql -h 127.0.0.1 -P 3306 -u root <<SQL
-CREATE DATABASE IF NOT EXISTS white_glove_delivery;
-CREATE USER IF NOT EXISTS 'wgds'@'%' IDENTIFIED BY '${DB_PASSWORD}';
-GRANT ALL PRIVILEGES ON white_glove_delivery.* TO 'wgds'@'%';
-FLUSH PRIVILEGES;
-SQL
+echo "==> Verifying PostgreSQL database ..."
+export DB_TYPE=postgres
+export DB_PORT=5432
+for i in {1..30}; do
+  if docker compose exec -T postgres pg_isready -U wgds -d white_glove_delivery >/dev/null 2>&1; then
+    break
   fi
-  echo "    MySQL ready (wgds / white_glove_delivery)."
-else
-  echo "    mysql client not found — run npm run db:setup or create DB manually."
+  sleep 1
+done
+if ! docker compose exec -T postgres pg_isready -U wgds -d white_glove_delivery >/dev/null 2>&1; then
+  echo "ERROR: PostgreSQL did not become ready. Run: npm run db:setup" >&2
+  exit 1
 fi
+docker compose exec -T postgres psql -U wgds -d white_glove_delivery \
+  -c "SELECT 'PostgreSQL ready' AS status;"
+echo "    PostgreSQL ready (wgds / white_glove_delivery on :5432)."
 
 ENV_FILE="$ROOT/.env.localstack"
 if [[ ! -f "$ENV_FILE" ]]; then

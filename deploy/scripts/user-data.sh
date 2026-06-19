@@ -9,9 +9,9 @@ exec > >(tee /var/log/wgs-user-data.log) 2>&1
 
 echo "[wgs] Starting user-data bootstrap at $(date -Is)"
 
-# --- Packages: Docker + AWS CLI v2 + MySQL client for RDS backups ---
+# --- Packages: Docker + AWS CLI v2 + PostgreSQL client for RDS backups ---
 dnf update -y
-dnf install -y docker cronie jq mariadb105
+dnf install -y docker cronie jq postgresql15
 systemctl enable --now docker
 usermod -aG docker ec2-user
 
@@ -35,16 +35,10 @@ chown -R ec2-user:ec2-user "$APP_DIR"
 
 # --- Fetch secrets into .env (created on first boot; deploy script refreshes on updates) ---
 REGION="${AWS_REGION:-us-east-1}"
-DB_JSON=$(aws secretsmanager get-secret-value --secret-id "$WGS_DB_SECRET_ARN" --region "$REGION" --query SecretString --output text)
 JWT_JSON=$(aws secretsmanager get-secret-value --secret-id "$WGS_JWT_SECRET_ARN" --region "$REGION" --query SecretString --output text)
-
-DB_PASSWORD=$(echo "$DB_JSON" | jq -r '.password')
-DB_USERNAME=$(echo "$DB_JSON" | jq -r '.username')
-DB_DATABASE=$(echo "$DB_JSON" | jq -r '.dbname')
 JWT_SECRET=$(echo "$JWT_JSON" | jq -r '.secret')
 
-# PostgreSQL cutover: set WGS_PG_RDS_ENDPOINT + WGS_PG_DB_SECRET_ARN on instance launch.
-DB_TYPE="${WGS_DB_TYPE:-mysql}"
+# PostgreSQL (production default)
 if [[ -n "${WGS_PG_RDS_ENDPOINT:-}" && -n "${WGS_PG_DB_SECRET_ARN:-}" ]]; then
   PG_JSON=$(aws secretsmanager get-secret-value --secret-id "$WGS_PG_DB_SECRET_ARN" --region "$REGION" --query SecretString --output text)
   DB_TYPE=postgres
@@ -52,14 +46,18 @@ if [[ -n "${WGS_PG_RDS_ENDPOINT:-}" && -n "${WGS_PG_DB_SECRET_ARN:-}" ]]; then
   DB_PORT=5432
   DB_USERNAME=$(echo "$PG_JSON" | jq -r '.username')
   DB_PASSWORD=$(echo "$PG_JSON" | jq -r '.password')
-  DB_DATABASE=$(echo "$PG_JSON" | jq -r '.dbname')
-else
-  # RDS host from CDK env; fall back to secret host field after RDS attachment
+  DB_DATABASE=$(echo "$PG_JSON" | jq -r '.dbname // .database // "white_glove_delivery"')
+elif [[ -n "${WGS_DB_SECRET_ARN:-}" ]]; then
+  # Legacy MySQL bootstrap (pre-cutover instances only)
+  DB_JSON=$(aws secretsmanager get-secret-value --secret-id "$WGS_DB_SECRET_ARN" --region "$REGION" --query SecretString --output text)
+  DB_TYPE=mysql
+  DB_PASSWORD=$(echo "$DB_JSON" | jq -r '.password')
+  DB_USERNAME=$(echo "$DB_JSON" | jq -r '.username')
+  DB_DATABASE=$(echo "$DB_JSON" | jq -r '.dbname')
   DB_HOST="${WGS_RDS_ENDPOINT:-$(echo "$DB_JSON" | jq -r '.host // empty')}"
   DB_PORT=3306
-fi
-if [[ -z "$DB_HOST" || "$DB_HOST" == "null" ]]; then
-  echo "[wgs] ERROR: WGS_RDS_ENDPOINT not set and no host in db secret"
+else
+  echo "[wgs] ERROR: PostgreSQL env vars not set (WGS_PG_RDS_ENDPOINT + WGS_PG_DB_SECRET_ARN)"
   exit 1
 fi
 
@@ -90,10 +88,8 @@ chmod 600 "$APP_DIR/.env"
 chown ec2-user:ec2-user "$APP_DIR/.env"
 
 # --- Backup cron (daily 03:15 UTC) ---
-install -m 755 "$APP_DIR/deploy/scripts/backup-mysql-to-s3.sh" /usr/local/bin/wgs-backup-mysql 2>/dev/null || true
-if [[ -x /usr/local/bin/wgs-backup-mysql ]]; then
-  echo "15 3 * * * root /usr/local/bin/wgs-backup-mysql >> /var/log/wgs-mysql-backup.log 2>&1" \
-    > /etc/cron.d/wgs-mysql-backup
+if [[ -x "$APP_DIR/deploy/scripts/install-backup-cron.sh" ]]; then
+  bash "$APP_DIR/deploy/scripts/install-backup-cron.sh"
 fi
 
 # --- Start stack if compose file already present (re-deploy / AMI refresh) ---

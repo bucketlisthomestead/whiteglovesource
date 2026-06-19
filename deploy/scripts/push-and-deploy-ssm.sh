@@ -106,6 +106,9 @@ aws s3 cp "s3://${BUCKET}/${ARTIFACT_KEY}" /tmp/wgs-app.tar.gz --region "\$REGIO
 tar -xzf /tmp/wgs-app.tar.gz -C "\$APP_DIR"
 rm -f /tmp/wgs-app.tar.gz
 chown -R ec2-user:ec2-user "\$APP_DIR"
+if [[ -x "\$APP_DIR/deploy/scripts/install-backup-cron.sh" ]]; then
+  bash "\$APP_DIR/deploy/scripts/install-backup-cron.sh"
+fi
 if [[ ! -f "\$APP_DIR/.env" ]]; then
   echo "Missing \$APP_DIR/.env — wait for EC2 user-data, then retry."
   exit 1

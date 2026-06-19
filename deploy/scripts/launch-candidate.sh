@@ -13,9 +13,9 @@ source "$ROOT/deploy/scripts/lib/stack-outputs.sh"
 REGION="${AWS_REGION:-us-east-1}"
 APP_NAME="$(wgs_stack_output AppName)"
 BUCKET="$(wgs_stack_output BucketName)"
-DB_SECRET_ARN="$(wgs_stack_output DbSecretArn)"
 JWT_SECRET_ARN="$(wgs_stack_output JwtSecretArn)"
-RDS_ENDPOINT="$(wgs_stack_output RdsEndpoint)"
+PG_ENDPOINT="$(wgs_postgres_endpoint)"
+PG_SECRET_ARN="$(wgs_pg_secret_arn)"
 SG_ID="$(wgs_stack_output InstanceSecurityGroupId)"
 ROLE_NAME="$(wgs_stack_output InstanceProfileName)"
 INSTANCE_TYPE="${WGS_INSTANCE_TYPE:-t4g.small}"
@@ -93,7 +93,7 @@ if [[ -n "$EXISTING_CANDIDATE" && "$EXISTING_CANDIDATE" != "None" ]]; then
   fi
 fi
 
-USER_DATA="$(wgs_build_user_data "$REGION" "$BUCKET" "$DB_SECRET_ARN" "$JWT_SECRET_ARN" "$RDS_ENDPOINT")" \
+USER_DATA="$(wgs_build_user_data "$REGION" "$BUCKET" "$JWT_SECRET_ARN" "$PG_ENDPOINT" "$PG_SECRET_ARN")" \
   || { echo "Failed to build EC2 user-data (see errors above)."; exit 1; }
 
 echo "Launching candidate instance (type=$INSTANCE_TYPE, subnet=$SUBNET_ID) ..."

@@ -6,9 +6,10 @@
   "scripts": {
     "db:setup": "bash scripts/setup-db.sh",
     "db:up": "bash scripts/setup-db.sh",
-    "db:down": "docker compose down",
-    "localstack:up": "docker compose -f docker-compose.yml -f docker-compose.localstack.yml up -d",
-    "localstack:down": "docker compose -f docker-compose.yml -f docker-compose.localstack.yml down",
+    "db:migrate:postgres": "bash scripts/migrate-mysql-to-postgresql-local.sh",
+    "db:down": "bash scripts/compose-with-dev-env.sh down",
+    "localstack:up": "bash scripts/compose-with-dev-env.sh -f docker-compose.yml -f docker-compose.localstack.yml up -d postgres mailpit localstack",
+    "localstack:down": "bash scripts/compose-with-dev-env.sh -f docker-compose.yml -f docker-compose.localstack.yml down",
     "localstack:init": "bash scripts/localstack-init.sh",
     "localstack:deploy": "bash deploy/scripts/deploy-localstack.sh",
     "mail:up": "bash scripts/mail-up.sh",

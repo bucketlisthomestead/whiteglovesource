@@ -1,5 +1,5 @@
-# LocalStack + existing local dependencies (MySQL, Postgres, Mailpit).
-# Usage: docker compose -f docker-compose.yml -f docker-compose.localstack.yml up -d
+# LocalStack + existing local dependencies (PostgreSQL, Mailpit).
+# Usage: docker compose -f docker-compose.yml -f docker-compose.localstack.yml up -d postgres mailpit localstack
 include:
   - path: docker-compose.yml
 

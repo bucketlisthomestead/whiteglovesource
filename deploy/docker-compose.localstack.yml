@@ -16,7 +16,9 @@ services:
       - 'host.docker.internal:host-gateway'
     environment:
       PORT: 3000
+      DB_TYPE: postgres
       DB_HOST: host.docker.internal
+      DB_PORT: 5432
       SMTP_HOST: host.docker.internal
       AWS_ENDPOINT_URL: http://host.docker.internal:4566
       S3_PUBLIC_BASE_URL: http://host.docker.internal:4566/wgs-local-app

@@ -58,28 +58,62 @@ wgs_instance_public_ip() {
     --region "$REGION"
 }
 
+wgs_pg_migrate_state_file() {
+  local root
+  root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+  echo "${WGS_PG_MIGRATE_STATE:-$root/.pg-migrate-state.json}"
+}
+
+wgs_postgres_endpoint() {
+  local v file
+  v="$(wgs_stack_output PostgresEndpoint)"
+  if [[ -n "$v" && "$v" != "None" ]]; then
+    echo "$v"
+    return
+  fi
+  file="$(wgs_pg_migrate_state_file)"
+  if [[ -f "$file" ]]; then
+    jq -r '.pgEndpoint // empty' "$file"
+  fi
+}
+
+wgs_pg_secret_arn() {
+  local v file
+  v="$(wgs_stack_output PgSecretArn)"
+  if [[ -n "$v" && "$v" != "None" ]]; then
+    echo "$v"
+    return
+  fi
+  file="$(wgs_pg_migrate_state_file)"
+  if [[ -f "$file" ]]; then
+    jq -r '.pgSecretArn // empty' "$file"
+  fi
+}
+
 wgs_build_user_data() {
   local region="$1"
   local bucket="$2"
-  local db_secret_arn="$3"
-  local jwt_secret_arn="$4"
-  local rds_endpoint="$5"
+  local jwt_secret_arn="$3"
+  local pg_endpoint="${4:-$(wgs_postgres_endpoint)}"
+  local pg_secret_arn="${5:-$(wgs_pg_secret_arn)}"
   local root script
-  # lib/ is three levels below repo root (deploy/scripts/lib -> ../../..)
   root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
   script="$(cat "$root/deploy/scripts/user-data.sh")"
   if [[ -z "$script" ]] || ! grep -q 'Starting user-data bootstrap' <<<"$script"; then
     echo "wgs_build_user_data: failed to read deploy/scripts/user-data.sh from $root" >&2
     return 1
   fi
-  # cloud-init requires #!/bin/bash on line 1 (CDK UserData.forLinux() does this; run-instances does not).
+  if [[ -z "$pg_endpoint" || -z "$pg_secret_arn" ]]; then
+    echo "wgs_build_user_data: PostgreSQL endpoint/secret not configured." >&2
+    return 1
+  fi
   cat <<EOF
 #!/bin/bash
 export AWS_REGION=${region}
 export WGS_BUCKET=${bucket}
-export WGS_DB_SECRET_ARN=${db_secret_arn}
 export WGS_JWT_SECRET_ARN=${jwt_secret_arn}
-export WGS_RDS_ENDPOINT=${rds_endpoint}
+export WGS_PG_RDS_ENDPOINT=${pg_endpoint}
+export WGS_PG_DB_SECRET_ARN=${pg_secret_arn}
 ${script}
 EOF
 }

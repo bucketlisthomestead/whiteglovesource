@@ -3,7 +3,6 @@ import { join } from 'path';
 import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from 'aws-cdk-lib/aws-iam';
-import * as rds from 'aws-cdk-lib/aws-rds';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import { Construct } from 'constructs';
@@ -16,15 +15,18 @@ export class WgsStack extends cdk.Stack {
     const appName = this.node.tryGetContext('appName') ?? 'wgs';
     const instanceTypeName =
       this.node.tryGetContext('instanceType') ?? 't4g.small';
-    const rdsInstanceTypeRaw =
-      this.node.tryGetContext('rdsInstanceType') ?? 't4g.micro';
-    // RDS DatabaseInstance prepends "db." — do not pass db. prefix here.
-    const rdsInstanceType = new ec2.InstanceType(
-      String(rdsInstanceTypeRaw).replace(/^db\./, ''),
-    );
-    const rdsMultiAz = this.node.tryGetContext('rdsMultiAz') === 'true';
-    const enablePostgresRds =
-      this.node.tryGetContext('enablePostgresRds') === 'true';
+    const postgresEndpoint = this.node.tryGetContext('postgresEndpoint') as
+      | string
+      | undefined;
+    const pgSecretArn = this.node.tryGetContext('pgSecretArn') as
+      | string
+      | undefined;
+
+    if (!postgresEndpoint || !pgSecretArn) {
+      throw new Error(
+        'Set CDK context postgresEndpoint and pgSecretArn (see infra/cdk.json).',
+      );
+    }
 
     // --- Default VPC (no NAT, no extra cost) ---
     const vpc = ec2.Vpc.fromLookup(this, 'DefaultVpc', { isDefault: true });
@@ -54,10 +56,10 @@ export class WgsStack extends cdk.Stack {
       ],
     });
 
-    // --- Secrets (RDS attaches host/port after instance creation) ---
+    // Legacy MySQL secret (retained; app uses wgs/pg after PostgreSQL cutover)
     const dbSecret = new secretsmanager.Secret(this, 'DbSecret', {
       secretName: `${appName}/db`,
-      description: 'MySQL credentials for White Glove Moving Service (RDS)',
+      description: 'Legacy MySQL credentials (retained after PostgreSQL cutover)',
       generateSecretString: {
         secretStringTemplate: JSON.stringify({
           username: 'wgds',
@@ -71,7 +73,7 @@ export class WgsStack extends cdk.Stack {
 
     const jwtSecret = new secretsmanager.Secret(this, 'JwtSecret', {
       secretName: `${appName}/jwt`,
-      description: 'JWT signing secret for White Glove Moving Service API',
+      description: 'JWT signing secret for White Glove Source API',
       generateSecretString: {
         secretStringTemplate: JSON.stringify({ app: appName }),
         generateStringKey: 'secret',
@@ -89,93 +91,6 @@ export class WgsStack extends cdk.Stack {
     instanceSg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), 'HTTP');
     instanceSg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443), 'HTTPS');
 
-    const rdsSg = new ec2.SecurityGroup(this, 'RdsSg', {
-      vpc,
-      description: 'WGS RDS MySQL - EC2 security group only on 3306',
-      allowAllOutbound: false,
-    });
-    rdsSg.addIngressRule(instanceSg, ec2.Port.tcp(3306), 'MySQL from EC2');
-
-    // --- RDS subnet selection: private if available, else public (no public access) ---
-    const rdsSubnetSelection =
-      vpc.privateSubnets.length > 0
-        ? { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS }
-        : vpc.isolatedSubnets.length > 0
-          ? { subnetType: ec2.SubnetType.PRIVATE_ISOLATED }
-          : { subnetType: ec2.SubnetType.PUBLIC };
-
-    const dbInstance = new rds.DatabaseInstance(this, 'DbInstance', {
-      engine: rds.DatabaseInstanceEngine.mysql({
-        version: rds.MysqlEngineVersion.VER_8_0,
-      }),
-      instanceType: rdsInstanceType,
-      vpc,
-      vpcSubnets: rdsSubnetSelection,
-      securityGroups: [rdsSg],
-      credentials: rds.Credentials.fromSecret(dbSecret),
-      databaseName: 'white_glove_delivery',
-      allocatedStorage: 20,
-      maxAllocatedStorage: 50,
-      storageEncrypted: true,
-      multiAz: rdsMultiAz,
-      publiclyAccessible: false,
-      deletionProtection: false,
-      removalPolicy: cdk.RemovalPolicy.SNAPSHOT,
-      backupRetention: cdk.Duration.days(7),
-    });
-
-    // --- Optional PostgreSQL RDS (MySQL -> PostgreSQL migration target) ---
-    let pgSecret: secretsmanager.ISecret | undefined;
-    let pgInstance: rds.DatabaseInstance | undefined;
-
-    if (enablePostgresRds) {
-      pgSecret = new secretsmanager.Secret(this, 'PgSecret', {
-        secretName: `${appName}/pg`,
-        description:
-          'PostgreSQL credentials for White Glove Moving Service (RDS)',
-        generateSecretString: {
-          secretStringTemplate: JSON.stringify({
-            username: 'wgds',
-            dbname: 'white_glove_delivery',
-          }),
-          generateStringKey: 'password',
-          excludeCharacters: '"@/\\\'',
-          passwordLength: 32,
-        },
-      });
-
-      const pgRdsSg = new ec2.SecurityGroup(this, 'PgRdsSg', {
-        vpc,
-        description: 'WGS RDS PostgreSQL - EC2 security group only on 5432',
-        allowAllOutbound: false,
-      });
-      pgRdsSg.addIngressRule(
-        instanceSg,
-        ec2.Port.tcp(5432),
-        'PostgreSQL from EC2',
-      );
-
-      pgInstance = new rds.DatabaseInstance(this, 'PgDbInstance', {
-        engine: rds.DatabaseInstanceEngine.postgres({
-          version: rds.PostgresEngineVersion.VER_16,
-        }),
-        instanceType: rdsInstanceType,
-        vpc,
-        vpcSubnets: rdsSubnetSelection,
-        securityGroups: [pgRdsSg],
-        credentials: rds.Credentials.fromSecret(pgSecret),
-        databaseName: 'white_glove_delivery',
-        allocatedStorage: 20,
-        maxAllocatedStorage: 50,
-        storageEncrypted: true,
-        multiAz: rdsMultiAz,
-        publiclyAccessible: false,
-        deletionProtection: false,
-        removalPolicy: cdk.RemovalPolicy.SNAPSHOT,
-        backupRetention: cdk.Duration.days(7),
-      });
-    }
-
     // --- IAM role ---
     const role = new iam.Role(this, 'InstanceRole', {
       assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
@@ -189,7 +104,12 @@ export class WgsStack extends cdk.Stack {
     bucket.grantReadWrite(role);
     dbSecret.grantRead(role);
     jwtSecret.grantRead(role);
-    pgSecret?.grantRead(role);
+    role.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ['secretsmanager:GetSecretValue'],
+        resources: [pgSecretArn],
+      }),
+    );
     role.addToPolicy(
       new iam.PolicyStatement({
         actions: [
@@ -225,10 +145,9 @@ export class WgsStack extends cdk.Stack {
     userData.addCommands(
       `export AWS_REGION=${this.region}`,
       `export WGS_BUCKET=${bucket.bucketName}`,
-      `export WGS_DB_SECRET_ARN=${dbSecret.secretArn}`,
       `export WGS_JWT_SECRET_ARN=${jwtSecret.secretArn}`,
-      `export WGS_RDS_ENDPOINT=${dbInstance.dbInstanceEndpointAddress}`,
-      `export WGS_EIP_ALLOCATION_ID=${eip.attrAllocationId}`,
+      `export WGS_PG_RDS_ENDPOINT=${postgresEndpoint}`,
+      `export WGS_PG_DB_SECRET_ARN=${pgSecretArn}`,
       userDataScript,
     );
 
@@ -281,26 +200,25 @@ export class WgsStack extends cdk.Stack {
       description: 'Active EC2 instance ID (wgs-role=active)',
     });
 
+    new cdk.CfnOutput(this, 'PostgresEndpoint', {
+      value: postgresEndpoint,
+      description: 'RDS PostgreSQL endpoint hostname',
+    });
+
+    new cdk.CfnOutput(this, 'PgSecretArn', {
+      value: pgSecretArn,
+      description: 'PostgreSQL credentials secret (wgs/pg)',
+    });
+
     new cdk.CfnOutput(this, 'RdsEndpoint', {
-      value: dbInstance.dbInstanceEndpointAddress,
-      description: 'RDS MySQL endpoint hostname',
+      value: postgresEndpoint,
+      description: 'Deprecated alias for PostgresEndpoint',
     });
 
     new cdk.CfnOutput(this, 'DbSecretArn', {
       value: dbSecret.secretArn,
+      description: 'Legacy MySQL secret (wgs/db)',
     });
-
-    if (pgInstance && pgSecret) {
-      new cdk.CfnOutput(this, 'PostgresEndpoint', {
-        value: pgInstance.dbInstanceEndpointAddress,
-        description: 'RDS PostgreSQL endpoint (enablePostgresRds context)',
-      });
-
-      new cdk.CfnOutput(this, 'PgSecretArn', {
-        value: pgSecret.secretArn,
-        description: 'PostgreSQL credentials secret (wgs/pg)',
-      });
-    }
 
     new cdk.CfnOutput(this, 'JwtSecretArn', {
       value: jwtSecret.secretArn,

@@ -20,6 +20,8 @@
     "@aws-cdk/core:target-partitions": ["aws", "aws-cn"],
     "region": "us-east-1",
     "instanceType": "t4g.small",
-    "appName": "wgs"
+    "appName": "wgs",
+    "postgresEndpoint": "wgs-postgres.cttrtjhyp7dk.us-east-1.rds.amazonaws.com",
+    "pgSecretArn": "arn:aws:secretsmanager:us-east-1:536579406753:secret:wgs/pg-ZHlJGW"
   }
 }
