@@ -1,0 +1,31 @@
+{
+  "name": "white-glove-delivery-service",
+  "version": "1.0.0",
+  "private": true,
+  "description": "White Glove Source — premium furniture logistics for interior designers",
+  "scripts": {
+    "db:setup": "bash scripts/setup-db.sh",
+    "db:up": "bash scripts/setup-db.sh",
+    "db:down": "docker compose down",
+    "mail:up": "bash scripts/mail-up.sh",
+    "mail:down": "bash scripts/mail-down.sh",
+    "backend:dev": "npm run start:dev --prefix backend",
+    "frontend:dev": "npm run dev --prefix frontend",
+    "dev": "concurrently \"npm run backend:dev\" \"npm run frontend:dev\"",
+    "build": "npm run build --prefix backend && npm run build --prefix frontend",
+    "walkthrough:install": "npm install --prefix e2e && npm exec --prefix e2e playwright install chromium",
+    "walkthrough:video": "cd e2e && npx playwright test walkthrough.spec.ts",
+    "walkthrough:watch": "bash scripts/walkthrough-watch.sh watch",
+    "walkthrough:debug": "bash scripts/walkthrough-watch.sh debug",
+    "walkthrough:ui": "bash scripts/walkthrough-watch.sh ui",
+    "walkthrough:render": "bash scripts/walkthrough-render.sh",
+    "walkthrough:export": "node scripts/export-walkthrough.mjs",
+    "test:deploy-smoke": "cd e2e && BASE_URL=${BASE_URL:-http://localhost:5173} npx playwright test deploy-smoke.spec.ts --config playwright.deploy.config.ts",
+    "pre-commit:scan": "bash scripts/pre-commit-scan.sh",
+    "setup:git-hooks": "bash scripts/setup-git-hooks.sh"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "ffmpeg-static": "^5.2.0"
+  }
+}

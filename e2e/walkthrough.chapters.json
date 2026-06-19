@@ -1,0 +1,62 @@
+[
+  {
+    "id": "01",
+    "title": "1 · Client requests a quote",
+    "narration": "Welcome to White Glove Source. A designer or client starts on the public quote builder, entering contact details and the type of service they need."
+  },
+  {
+    "id": "02",
+    "title": "2 · Logistics and piece catalogue",
+    "narration": "Next they add pickup and install addresses, storage preferences, and select pieces from the catalogue. The estimate updates instantly as rooms are filled in."
+  },
+  {
+    "id": "03",
+    "title": "3 · Submit quote request",
+    "narration": "When they submit, the quote is saved and the client sees a confirmation with their estimated total. Our team is notified immediately."
+  },
+  {
+    "id": "04",
+    "title": "4 · Owner notification email",
+    "narration": "In development, outbound email is intercepted by Mailpit. Here is the notification sent to the owner when a new quote request arrives — nothing goes to a real inbox."
+  },
+  {
+    "id": "05",
+    "title": "5 · Admin dashboard",
+    "narration": "The admin opens the control panel dashboard to see pipeline totals — proposals, pending quotes, and projects in progress — all with dollar values at a glance."
+  },
+  {
+    "id": "06",
+    "title": "6 · Quote detail and audit trail",
+    "narration": "Opening the quote shows full contact and logistics details, plus an audit trail that records every change and message for accountability."
+  },
+  {
+    "id": "07",
+    "title": "7 · Send quote for client approval",
+    "narration": "The admin sets the final quoted amount, saves, and sends the quote to the client for approval. That triggers a formatted approval email."
+  },
+  {
+    "id": "08",
+    "title": "8 · Client approval email",
+    "narration": "In Mailpit, here is the email the client would receive — line items, logistics, quoted amount, and instructions to reply with approval."
+  },
+  {
+    "id": "09",
+    "title": "9 · Create project from quote",
+    "narration": "Once approved, the admin assigns a designer and client, then creates a project seeded with rooms and pieces from the quote catalogue."
+  },
+  {
+    "id": "10",
+    "title": "10 · Project inventory",
+    "narration": "The new project portal opens with inventory by room, phase signoffs, and the staging plan — ready for the operations team."
+  },
+  {
+    "id": "11",
+    "title": "11 · Full lifecycle demo",
+    "narration": "The demo project shows a mature job: staging workflow, crew schedule with pickups, and inventory signoffs through installation."
+  },
+  {
+    "id": "12",
+    "title": "12 · Completed projects",
+    "narration": "Finished projects move to the completed list. From first quote request through email, audit, and delivery — White Glove Source keeps every step visible."
+  }
+]

@@ -1,0 +1,21 @@
+---
+description: TypeORM entity column types for MySQL — prevents DataTypeNotSupportedError
+globs: backend/src/entities/**/*.ts
+alwaysApply: false
+---
+
+# TypeORM entity columns (MySQL)
+
+Always set an explicit `@Column({ type: ... })` for MySQL. Never rely on TypeORM inferring from TypeScript.
+
+**Required patterns:**
+- UUID / FK ids: `{ type: 'varchar', length: 36 }` (add `nullable: true` when optional)
+- Short text: `{ type: 'varchar', length: 255 }`
+- Long text / notes: `{ type: 'text', nullable: true }`
+- Enums: `{ type: 'enum', enum: MyEnum, nullable: true }`
+- Booleans: `{ type: 'boolean', default: false }`
+- Numbers: `{ type: 'int' }`, `{ type: 'decimal', precision: 10, scale: 2 }`
+
+**Avoid:** `@Column({ nullable: true })` on `string | null` — TypeORM reflects the union as `Object` and MySQL sync fails with `DataTypeNotSupportedError`.
+
+Match existing entities like `signoff.entity.ts` and `quote-request.entity.ts`.

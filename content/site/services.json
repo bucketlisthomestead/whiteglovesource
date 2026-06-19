@@ -1,0 +1,56 @@
+{
+  "pageHeader": {
+    "eyebrow": "Our Services",
+    "title": "End-to-End Designer Logistics",
+    "subtitle": "From the receiving dock to the reveal day — one partner, complete visibility, museum-level care."
+  },
+  "serviceDetails": [
+    {
+      "title": "Receiving & Inspection",
+      "description": "Vendors and showrooms ship directly to our High Point facility. We unload, inspect, photograph, and document the condition of every item before it enters storage.",
+      "includes": [
+        "Photo documentation at intake",
+        "Condition rating and damage reports",
+        "Digital inventory with SKU tracking",
+        "Immediate designer notification"
+      ]
+    },
+    {
+      "title": "Climate-Controlled Storage",
+      "description": "Your pieces are stored in our organized warehouse — grouped by project and sequenced for install day. No more garage storage or missed deliveries.",
+      "includes": [
+        "Climate-controlled environment",
+        "Project and room-based organization",
+        "Flexible hold times",
+        "Consolidated multi-vendor receiving"
+      ]
+    },
+    {
+      "title": "White-Glove Delivery & Installation",
+      "description": "Our uniformed, trained crews arrive fully briefed on your floor plan. We place, assemble, and stage every piece — then remove all packaging materials.",
+      "includes": [
+        "Room-of-choice placement",
+        "Light assembly and staging",
+        "Floor and wall protection",
+        "Complete debris removal",
+        "Building and elevator coordination"
+      ]
+    },
+    {
+      "title": "Project Management Portal",
+      "description": "A shared dashboard for designers and clients to track every piece through its journey — with verified condition and location at each stage.",
+      "includes": [
+        "Real-time piece tracking",
+        "Room assignments",
+        "Condition verification history",
+        "Stage progression timeline",
+        "Client and designer access"
+      ]
+    }
+  ],
+  "bottomCta": {
+    "title": "Serving the Triad's Top Designers",
+    "subtitle": "Based in High Point — the Furniture Capital of the World — we understand the pace and precision your projects demand.",
+    "cta": "Request a Quote"
+  }
+}

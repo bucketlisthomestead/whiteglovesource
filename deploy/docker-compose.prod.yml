@@ -1,0 +1,33 @@
+services:
+  api:
+    container_name: wgs-api
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    volumes:
+      - api_uploads:/app/uploads
+    networks:
+      - wgs
+
+  nginx:
+    container_name: wgs-nginx
+    build:
+      context: ..
+      dockerfile: deploy/nginx/Dockerfile
+    restart: unless-stopped
+    ports:
+      - '80:80'
+    depends_on:
+      - api
+    networks:
+      - wgs
+
+volumes:
+  api_uploads:
+
+networks:
+  wgs:
+    driver: bridge

@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Cormorant Garamond", Georgia, serif;
+  --font-sans: "DM Sans", system-ui, sans-serif;
+  --color-cream: #f8f5f0;
+  --color-cream-dark: #ede8df;
+  --color-charcoal: #1c1c1c;
+  --color-charcoal-light: #2d2d2d;
+  --color-gold: #b8956a;
+  --color-gold-light: #d4b896;
+  --color-sage: #6b7f6e;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-cream text-charcoal font-sans antialiased;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-pb {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Mobile touch targets */
+@media (max-width: 768px) {
+  button, a, select, input, textarea {
+    font-size: 16px; /* prevents iOS zoom on focus */
+  }
+}
+
+h1, h2, h3, h4 {
+  @apply font-serif;
+}
+
+/* TipTap editor + rendered rich text */
+.prose-editor {
+  min-height: 100px;
+}
+
+.prose-editor:focus {
+  outline: none;
+}
+
+.prose-editor p.is-editor-empty:first-child::before {
+  color: rgb(28 28 28 / 0.3);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.rich-text p {
+  margin-bottom: 0.75rem;
+}
+
+.rich-text p:last-child {
+  margin-bottom: 0;
+}
+
+.rich-text ul,
+.rich-text ol {
+  margin: 0.5rem 0 0.75rem 1.25rem;
+}
+
+.rich-text ul {
+  list-style: disc;
+}
+
+.rich-text ol {
+  list-style: decimal;
+}
+
+.rich-text a {
+  color: var(--color-gold);
+  text-decoration: underline;
+}
+
+.rich-text strong,
+.rich-text b {
+  font-weight: 600;
+}
