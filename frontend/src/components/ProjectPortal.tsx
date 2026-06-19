@@ -18,13 +18,23 @@ import { ContractAgreementSection } from '../components/ContractAgreementSection
 import { PhasePaymentsSection } from '../components/PhasePaymentsSection';
 import { ProjectAuditPanel } from '../components/ProjectAuditPanel';
 import { ProjectLabelsSection } from '../components/ProjectLabelsSection';
+import { ProjectChangeOrdersSection } from '../components/ProjectChangeOrdersSection';
+import { ProjectScopeReductionSection } from '../components/ProjectScopeReductionSection';
 import { SearchField, matchesSearch } from '../components/SearchField';
 import {
   ProjectPhaseTimeline,
+  CompactProjectPhaseTimeline,
   StagingPlanSection,
   PickupLocationsSection,
   ScheduleSection,
 } from '../components/ProjectWorkflow';
+import { ProjectLayoutSwitcher } from '../components/ProjectLayoutSwitcher';
+import { useProjectLayout } from '../hooks/useProjectLayout';
+import {
+  shouldShowTimeline,
+  visibleTabs,
+  type ProjectTabId,
+} from '../lib/projectLayout';
 import { PERMISSIONS, hasAnyPermission } from '../lib/permissions';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -38,7 +48,7 @@ import {
 } from '../lib/labels';
 import {
   MapPin, Calendar, User, Building2, Package, ChevronRight, X,
-  Loader2, AlertCircle, Pencil, Wifi, RotateCcw,
+  Loader2, AlertCircle, Pencil, Wifi, RotateCcw, ChevronDown,
 } from 'lucide-react';
 
 interface ProjectPortalProps {
@@ -48,12 +58,23 @@ interface ProjectPortalProps {
 
 export function ProjectPortal({ projectId, isDemo }: ProjectPortalProps) {
   const { user, isDesigner, hasPermission } = useAuth();
+  const { layoutId, setLayoutId, preset: layout } = useProjectLayout();
   const [searchParams] = useSearchParams();
   const [project, setProject] = useState<Project | null>(null);
   const [fromCache, setFromCache] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [activeTab, setActiveTab] = useState<'inventory' | 'plan' | 'schedule' | 'contract' | 'audit'>('inventory');
+  const [activeTab, setActiveTab] = useState<ProjectTabId>('inventory');
+  const [pieceSearch, setPieceSearch] = useState('');
+  const [headerDetailsOpen, setHeaderDetailsOpen] = useState(
+    () => !layout.defaultCollapsed.headerDetails,
+  );
+  const [headerPricingOpen, setHeaderPricingOpen] = useState(
+    () => !layout.defaultCollapsed.headerPricing,
+  );
+  const [headerDocumentsOpen, setHeaderDocumentsOpen] = useState(
+    () => !layout.defaultCollapsed.headerDocuments,
+  );
   const [selectedRoom, setSelectedRoom] = useState('all');
   const [selectedPiece, setSelectedPiece] = useState<Piece | null>(null);
   const [editingPiece, setEditingPiece] = useState<Piece | null>(null);
@@ -79,8 +100,26 @@ export function ProjectPortal({ projectId, isDemo }: ProjectPortalProps) {
   useEffect(() => {
     const tab = searchParams.get('tab');
     if (tab === 'audit' && user && !isDemo) setActiveTab('audit');
+    if (tab === 'changes' && user && !isDemo) setActiveTab('changes');
     if (searchParams.get('labels') === '1') setActiveTab('inventory');
   }, [searchParams, user, isDemo]);
+
+  useEffect(() => {
+    setHeaderDetailsOpen(!layout.defaultCollapsed.headerDetails);
+    setHeaderPricingOpen(!layout.defaultCollapsed.headerPricing);
+    setHeaderDocumentsOpen(!layout.defaultCollapsed.headerDocuments);
+  }, [layoutId, layout.defaultCollapsed.headerDetails, layout.defaultCollapsed.headerPricing, layout.defaultCollapsed.headerDocuments]);
+
+  const tabsForUser = useMemo(
+    () => visibleTabs(layout, { isDemo: !!isDemo, hasUser: !!user }),
+    [layout, isDemo, user],
+  );
+
+  useEffect(() => {
+    if (!tabsForUser.some((t) => t.id === activeTab)) {
+      setActiveTab(tabsForUser[0]?.id ?? 'inventory');
+    }
+  }, [tabsForUser, activeTab]);
 
   useEffect(() => {
     const load = async () => {
@@ -191,9 +230,16 @@ export function ProjectPortal({ projectId, isDemo }: ProjectPortalProps) {
 
   const filteredPieces = useMemo(() => {
     if (!project) return [];
-    if (selectedRoom === 'all') return project.pieces;
-    return project.pieces.filter((p) => p.roomId === selectedRoom);
-  }, [project, selectedRoom]);
+    let list = selectedRoom === 'all'
+      ? project.pieces
+      : project.pieces.filter((p) => p.roomId === selectedRoom);
+    if (pieceSearch.trim()) {
+      list = list.filter((p) =>
+        matchesSearch(pieceSearch, p.name, p.vendor, p.room?.name, p.currentLocation),
+      );
+    }
+    return list;
+  }, [project, selectedRoom, pieceSearch]);
 
   const handlePieceUpdate = async (updated: Piece) => {
     if (!project) return;
@@ -355,26 +401,26 @@ export function ProjectPortal({ projectId, isDemo }: ProjectPortalProps) {
 
       <section className={`max-w-7xl mx-auto px-4 py-6 md:py-10 ${showMarketingHeader ? 'pb-28 md:pb-10' : 'pb-6'}`}>
         <div className="bg-white border border-cream-dark p-4 md:p-6 mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-            <div>
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+            <div className="min-w-0">
               <span className="text-[10px] uppercase tracking-wider px-2 py-1 bg-charcoal/10 text-charcoal">
                 {PROJECT_STATUS_LABELS[project.status]}
               </span>
               {!isDemo && <h2 className="font-serif text-xl mt-2">{project.name}</h2>}
+              {layout.headerMode === 'compact' && (
+                <p className="text-xs text-charcoal/55 mt-1 truncate">
+                  {project.propertyAddress}
+                  {project.propertyCity ? `, ${project.propertyCity}` : ''}
+                </p>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <ProjectLayoutSwitcher layoutId={layoutId} onChange={setLayoutId} />
               {user && !isDemo && (
-                <PdfExportMenu
-                  loading={pdfLoading}
-                  onExport={setPendingExport}
-                />
+                <PdfExportMenu loading={pdfLoading} onExport={setPendingExport} />
               )}
             </div>
           </div>
-
-          {user && !isDemo && (
-            <ProjectDocumentsPanel projectId={project.id} refreshKey={documentsRefreshKey} />
-          )}
 
           {pendingExport && (
             <PdfExportDialog
@@ -386,62 +432,138 @@ export function ProjectPortal({ projectId, isDemo }: ProjectPortalProps) {
             />
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-cream-dark">
-            <InfoItem icon={MapPin} label="Property" value={`${project.propertyAddress}, ${project.propertyCity || ''}`} />
-            <InfoItem icon={Calendar} label="Target Install" value={formatDate(project.targetInstallDate)} />
-            <InfoItem icon={User} label="Designer" value={`${project.designer.name} — ${project.designer.firm}`} />
-            <InfoItem icon={Building2} label="Client" value={project.client.name} />
-          </div>
+          {layout.headerMode === 'full' && user && !isDemo && (
+            <div className="mt-4">
+              <ProjectDocumentsPanel projectId={project.id} refreshKey={documentsRefreshKey} />
+            </div>
+          )}
 
-          {!isDemo && project.mileRate != null && (
+          {(layout.headerMode === 'full' ||
+            (layout.headerMode === 'tiered' && headerDetailsOpen) ||
+            (layout.headerMode === 'compact' && headerDetailsOpen)) && (
+            <div
+              className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 ${
+                layout.headerMode === 'full' ? 'pt-4 border-t border-cream-dark mt-4' : 'pt-3 mt-3'
+              }`}
+            >
+              <InfoItem icon={MapPin} label="Property" value={`${project.propertyAddress}, ${project.propertyCity || ''}`} />
+              <InfoItem icon={Calendar} label="Target Install" value={formatDate(project.targetInstallDate)} />
+              <InfoItem icon={User} label="Designer" value={`${project.designer.name} — ${project.designer.firm}`} />
+              <InfoItem icon={Building2} label="Client" value={project.client.name} />
+            </div>
+          )}
+
+          {layout.headerMode !== 'full' && (
+            <button
+              type="button"
+              onClick={() => setHeaderDetailsOpen((v) => !v)}
+              className="mt-3 flex items-center gap-1 text-xs uppercase tracking-wider text-charcoal/60 min-h-[44px]"
+            >
+              <ChevronDown size={14} className={`transition-transform ${headerDetailsOpen ? 'rotate-180' : ''}`} />
+              {headerDetailsOpen ? 'Hide project details' : 'Show project details'}
+            </button>
+          )}
+
+          {!isDemo && project.mileRate != null && layout.headerMode === 'full' && (
             <div className="mt-4 pt-4 border-t border-cream-dark">
-              <p className="text-[10px] uppercase tracking-wider text-charcoal/40 mb-2">
+              <p className="text-[10px] uppercase tracking-wider text-charcoal/55 mb-2">
                 Locked pricing (from quote)
               </p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-charcoal/40">Mile rate</p>
-                  <p className="text-charcoal/80">{formatCurrency(Number(project.mileRate))}/mi</p>
+                  <p className="text-[10px] uppercase tracking-wider text-charcoal/55">Mile rate</p>
+                  <p className="text-charcoal">{formatCurrency(Number(project.mileRate))}/mi</p>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-charcoal/40">Coordination</p>
-                  <p className="text-charcoal/80">{formatCurrency(Number(project.projectBaseFee ?? 0))}</p>
+                  <p className="text-[10px] uppercase tracking-wider text-charcoal/55">Coordination</p>
+                  <p className="text-charcoal">{formatCurrency(Number(project.projectBaseFee ?? 0))}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-charcoal/40">Extra pickup</p>
-                  <p className="text-charcoal/80">
+                  <p className="text-[10px] uppercase tracking-wider text-charcoal/55">Extra pickup</p>
+                  <p className="text-charcoal">
                     {formatCurrency(Number(project.additionalPickupSurcharge ?? 0))}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-charcoal/40">Min quote</p>
-                  <p className="text-charcoal/80">{formatCurrency(Number(project.minimumQuote ?? 0))}</p>
+                  <p className="text-[10px] uppercase tracking-wider text-charcoal/55">Min quote</p>
+                  <p className="text-charcoal">{formatCurrency(Number(project.minimumQuote ?? 0))}</p>
                 </div>
               </div>
             </div>
           )}
+
+          {!isDemo && project.mileRate != null && layout.headerMode !== 'full' && (
+            <div className="mt-3 border-t border-cream-dark pt-3">
+              <button
+                type="button"
+                onClick={() => setHeaderPricingOpen((v) => !v)}
+                className="flex items-center gap-1 text-xs uppercase tracking-wider text-charcoal/60 min-h-[44px]"
+              >
+                <ChevronDown size={14} className={`transition-transform ${headerPricingOpen ? 'rotate-180' : ''}`} />
+                Locked pricing
+              </button>
+              {headerPricingOpen && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mt-2">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-charcoal/55">Mile rate</p>
+                    <p className="text-charcoal">{formatCurrency(Number(project.mileRate))}/mi</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-charcoal/55">Coordination</p>
+                    <p className="text-charcoal">{formatCurrency(Number(project.projectBaseFee ?? 0))}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-charcoal/55">Extra pickup</p>
+                    <p className="text-charcoal">
+                      {formatCurrency(Number(project.additionalPickupSurcharge ?? 0))}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-charcoal/55">Min quote</p>
+                    <p className="text-charcoal">{formatCurrency(Number(project.minimumQuote ?? 0))}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {layout.headerMode === 'tiered' && user && !isDemo && (
+            <div className="mt-3 border-t border-cream-dark pt-3">
+              <button
+                type="button"
+                onClick={() => setHeaderDocumentsOpen((v) => !v)}
+                className="flex items-center gap-1 text-xs uppercase tracking-wider text-charcoal/60 min-h-[44px] mb-2"
+              >
+                <ChevronDown size={14} className={`transition-transform ${headerDocumentsOpen ? 'rotate-180' : ''}`} />
+                Project documents
+              </button>
+              {headerDocumentsOpen && (
+                <ProjectDocumentsPanel projectId={project.id} refreshKey={documentsRefreshKey} />
+              )}
+            </div>
+          )}
         </div>
 
-        <ProjectPhaseTimeline
-          project={project}
-          showAdvance={!!(canAdvance && user && !isDemo && project.status !== 'complete')}
-          onAdvance={() => void handleAdvanceProject()}
-          advancing={advancingStatus}
-        />
+        {shouldShowTimeline(layout, activeTab) &&
+          (layout.timelineMode === 'compact' ? (
+            <CompactProjectPhaseTimeline project={project} />
+          ) : (
+            <ProjectPhaseTimeline
+              project={project}
+              showAdvance={!!(canAdvance && user && !isDemo && project.status !== 'complete')}
+              onAdvance={() => void handleAdvanceProject()}
+              advancing={advancingStatus}
+            />
+          ))}
 
         <div className="flex gap-1 overflow-x-auto mb-6 -mx-4 px-4 scrollbar-hide border-b border-cream-dark">
-          {([
-            ['inventory', 'Inventory'],
-            ['plan', 'Staging Plan'],
-            ['schedule', 'Crew Schedule'],
-            ...(user && !isDemo ? [['contract', 'Contract'] as const, ['audit', 'Record & Audit'] as const] : []),
-          ] as const).map(([tab, label]) => (
+          {tabsForUser.map(({ id, label }) => (
             <button
-              key={tab}
+              key={id}
               type="button"
-              onClick={() => setActiveTab(tab)}
+              onClick={() => setActiveTab(id)}
               className={`shrink-0 px-4 py-3 text-xs uppercase tracking-wider min-h-[44px] border-b-2 transition-colors ${
-                activeTab === tab
+                activeTab === id
                   ? 'border-gold text-charcoal font-medium'
                   : 'border-transparent text-charcoal/50'
               }`}
@@ -451,14 +573,30 @@ export function ProjectPortal({ projectId, isDemo }: ProjectPortalProps) {
           ))}
         </div>
 
+        {activeTab === 'changes' && !isDemo && canEdit && (
+          <div className="mb-6 space-y-6">
+            <ProjectChangeOrdersSection project={project} canManage />
+            <ProjectScopeReductionSection project={project} canManage />
+          </div>
+        )}
+
         {activeTab === 'plan' && (
           <>
+            {layout.scopeOnTab === 'plan' && !isDemo && canEdit && (
+              <div className="mb-6 space-y-6">
+                <ProjectChangeOrdersSection project={project} canManage />
+                <ProjectScopeReductionSection project={project} canManage />
+              </div>
+            )}
             <StagingPlanSection project={project} />
             <PickupLocationsSection project={project} />
+            {layout.scheduleOnTab === 'plan' && <ScheduleSection project={project} />}
           </>
         )}
 
-        {activeTab === 'schedule' && <ScheduleSection project={project} />}
+        {activeTab === 'schedule' && layout.scheduleOnTab === 'schedule' && (
+          <ScheduleSection project={project} />
+        )}
 
         {activeTab === 'contract' && user && !isDemo && (
           <>
@@ -473,16 +611,94 @@ export function ProjectPortal({ projectId, isDemo }: ProjectPortalProps) {
 
         {activeTab === 'inventory' && (
         <>
-        {showLabelsSection && (
-          <ProjectLabelsSection
-            project={project}
-            isDemo={isDemo}
-            defaultExpanded={labelsExpanded}
-          />
+        {layout.inventoryOrder === 'operations' && (
+          <>
+            <SearchField
+              value={pieceSearch}
+              onChange={setPieceSearch}
+              placeholder="Search pieces…"
+              className="mb-4"
+            />
+            <div className="flex gap-2 overflow-x-auto pb-2 mb-4 -mx-4 px-4 scrollbar-hide">
+              <FilterPill active={selectedRoom === 'all'} onClick={() => setSelectedRoom('all')}>
+                All ({project.pieces.length})
+              </FilterPill>
+              {project.rooms.map((room) => (
+                <FilterPill
+                  key={room.id}
+                  active={selectedRoom === room.id}
+                  onClick={() => setSelectedRoom(room.id)}
+                >
+                  {room.name} ({project.pieces.filter((p) => p.roomId === room.id).length})
+                </FilterPill>
+              ))}
+            </div>
+            <div className="space-y-2 md:space-y-0 md:bg-white md:border md:border-cream-dark mb-6">
+              {filteredPieces.map((piece) => (
+                <button
+                  key={piece.id}
+                  type="button"
+                  onClick={() => setSelectedPiece(piece)}
+                  className="w-full text-left bg-white md:bg-transparent border md:border-0 border-cream-dark p-4 md:px-6 md:py-4 md:border-t md:border-cream-dark hover:bg-cream/50 transition-colors group active:scale-[0.99]"
+                >
+                  <div className="flex items-start gap-3">
+                    <PiecePhoto piece={piece} size="thumb" className="rounded-sm border border-cream-dark" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-charcoal group-hover:text-gold transition-colors flex items-center gap-1">
+                        {piece.name}
+                        <ChevronRight size={14} className="opacity-50 shrink-0" />
+                      </p>
+                      {piece.vendor && <p className="text-xs text-charcoal/40">{piece.vendor}</p>}
+                      <p className="text-xs text-charcoal/50 mt-0.5">{PHASE_LABELS[STAGE_PHASE[piece.currentStage]]}</p>
+                      <p className="text-xs text-charcoal/50 mt-1 md:hidden">{piece.room?.name}</p>
+                      <p className="text-xs text-charcoal/40 mt-1 line-clamp-1">{piece.currentLocation}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <StageBadge stage={piece.currentStage} />
+                      <ConditionBadge condition={piece.currentCondition} />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </>
         )}
 
-        <InventorySignoffPanel project={project} onSignoff={handleSignoff} isDemo={isDemo} />
+        {showLabelsSection &&
+          (layout.defaultCollapsed.labels ? (
+            <CollapsibleSection
+              title="Inventory labels"
+              defaultOpen={labelsExpanded}
+              className="mb-6"
+            >
+              <ProjectLabelsSection
+                project={project}
+                isDemo={isDemo}
+                defaultExpanded={labelsExpanded || !layout.defaultCollapsed.labels}
+                embedded
+              />
+            </CollapsibleSection>
+          ) : (
+            <ProjectLabelsSection
+              project={project}
+              isDemo={isDemo}
+              defaultExpanded={labelsExpanded}
+            />
+          ))}
 
+        {layout.defaultCollapsed.signoffs ? (
+          <CollapsibleSection
+            title="Phase signoffs"
+            defaultOpen={false}
+            className="mb-6"
+          >
+            <InventorySignoffPanel project={project} onSignoff={handleSignoff} isDemo={isDemo} />
+          </CollapsibleSection>
+        ) : (
+          <InventorySignoffPanel project={project} onSignoff={handleSignoff} isDemo={isDemo} />
+        )}
+
+        {layout.showPhaseStatCards && (
         <div className="grid grid-cols-3 gap-2 mb-6">
           {PHASE_LABELS && (['planning', 'pickup_storage', 'installation'] as const).map((phase) => (
             <StatCard
@@ -493,7 +709,10 @@ export function ProjectPortal({ projectId, isDemo }: ProjectPortalProps) {
             />
           ))}
         </div>
+        )}
 
+        {layout.inventoryOrder === 'classic' && (
+        <>
         <div className="flex gap-2 overflow-x-auto pb-2 mb-4 -mx-4 px-4 scrollbar-hide">
           <FilterPill active={selectedRoom === 'all'} onClick={() => setSelectedRoom('all')}>
             All ({project.pieces.length})
@@ -539,6 +758,8 @@ export function ProjectPortal({ projectId, isDemo }: ProjectPortalProps) {
         </div>
         </>
         )}
+        </>
+        )}
       </section>
 
       {selectedPiece && !editingPiece && (
@@ -568,6 +789,33 @@ export function ProjectPortal({ projectId, isDemo }: ProjectPortalProps) {
         </div>
       )}
     </>
+  );
+}
+
+function CollapsibleSection({
+  title,
+  defaultOpen = false,
+  className = '',
+  children,
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className={`bg-white border border-cream-dark ${className}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-3 px-4 py-3 min-h-[44px] text-left hover:bg-cream/30 transition-colors"
+      >
+        <span className="text-sm font-semibold uppercase tracking-wide text-charcoal">{title}</span>
+        <ChevronDown size={16} className={`text-charcoal/50 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && <div className="px-4 pb-4 border-t border-cream-dark">{children}</div>}
+    </div>
   );
 }
 

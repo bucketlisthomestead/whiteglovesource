@@ -87,6 +87,10 @@ export class Piece {
   @Column({ type: 'varchar', length: 36, nullable: true })
   roomId: string | null;
 
+  /** Catalogue item this piece was created from (for scope reduction pricing). */
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  catalogItemId: string | null;
+
   /** Unique token encoded in label QR codes for scan/check-in. */
   @Column({ type: 'varchar', length: 16, unique: true, nullable: true })
   scanToken: string | null;

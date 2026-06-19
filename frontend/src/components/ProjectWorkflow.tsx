@@ -116,6 +116,49 @@ export function ProjectPhaseTimeline({
   );
 }
 
+/** Single-row workflow stepper for operations / compact layouts. */
+export function CompactProjectPhaseTimeline({ project }: { project: Project }) {
+  const currentPhase = STATUS_TO_PHASE[project.status];
+
+  return (
+    <div className="bg-white border border-cream-dark px-4 py-3 mb-6">
+      <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+        {PHASE_ORDER.map((phase, i) => {
+          const isActive = currentPhase === phase;
+          const isPast =
+            currentPhase
+              ? PHASE_ORDER.indexOf(currentPhase) > i
+              : project.status === 'complete';
+          const count = project.stats.phaseSummary?.[phase] ?? 0;
+
+          return (
+            <div key={phase} className="flex items-center gap-2 shrink-0">
+              {i > 0 && <span className="text-charcoal/20">·</span>}
+              <div
+                className={`flex items-center gap-1.5 px-2 py-1 text-xs ${
+                  isActive
+                    ? 'bg-gold/15 text-charcoal font-medium'
+                    : isPast
+                      ? 'text-emerald-700'
+                      : 'text-charcoal/45'
+                }`}
+              >
+                {isPast ? <Check size={12} /> : null}
+                <span>{PHASE_LABELS[phase]}</span>
+                <span className="text-charcoal/40">({count})</span>
+              </div>
+            </div>
+          );
+        })}
+        <span className="text-charcoal/20 shrink-0">·</span>
+        <span className="text-xs text-charcoal/55 shrink-0">
+          {PROJECT_STATUS_LABELS[project.status]}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function StagingPlanSection({ project }: { project: Project }) {
   if (!project.stagingPlanOverview && !project.rooms.some((r) => r.notes)) return null;
 

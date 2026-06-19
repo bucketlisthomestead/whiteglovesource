@@ -95,7 +95,7 @@ export function FormField({ label, children, required }: FormFieldProps) {
     <div>
       <label
         htmlFor={childId}
-        className="block text-xs uppercase tracking-wider text-charcoal/60 mb-2"
+        className="block text-xs uppercase tracking-wider text-charcoal/75 font-medium mb-2"
       >
         {label}{required && <span className="text-gold ml-1">*</span>}
       </label>

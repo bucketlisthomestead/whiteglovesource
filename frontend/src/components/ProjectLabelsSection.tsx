@@ -30,12 +30,15 @@ interface ProjectLabelsSectionProps {
   project: Project;
   isDemo?: boolean;
   defaultExpanded?: boolean;
+  /** When nested inside a collapsible panel, omit outer section chrome. */
+  embedded?: boolean;
 }
 
 export function ProjectLabelsSection({
   project,
   isDemo = false,
   defaultExpanded = false,
+  embedded = false,
 }: ProjectLabelsSectionProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const [loading, setLoading] = useState(true);
@@ -154,22 +157,28 @@ export function ProjectLabelsSection({
     }
   };
 
+  const shellClass = embedded
+    ? 'pt-2'
+    : 'mb-6 bg-white border border-cream-dark p-4 md:p-6';
+
   if (loading) {
     return (
-      <div className="mb-6 bg-white border border-cream-dark p-4 flex items-center gap-2 text-sm text-charcoal/50">
+      <section ref={sectionRef} className={shellClass + ' flex items-center gap-2 text-sm text-charcoal/50'}>
         <Loader2 size={16} className="animate-spin text-gold" />
         Loading labels…
-      </div>
+      </section>
     );
   }
 
   if (!labels.length) {
     return (
-      <section ref={sectionRef} className="mb-6 bg-white border border-cream-dark p-4 md:p-6">
-        <div className="flex items-center gap-2 mb-2">
-          <Printer size={16} className="text-gold" />
-          <h3 className="text-sm font-medium uppercase tracking-wider text-charcoal/70">Inventory Labels</h3>
-        </div>
+      <section ref={sectionRef} className={shellClass}>
+        {!embedded && (
+          <div className="flex items-center gap-2 mb-2">
+            <Printer size={16} className="text-gold" />
+            <h3 className="text-sm font-medium uppercase tracking-wider text-charcoal/70">Inventory Labels</h3>
+          </div>
+        )}
         <p className="text-sm text-charcoal/50">
           No pieces with scan codes yet. Add inventory pieces to generate QR labels.
         </p>
@@ -180,13 +189,15 @@ export function ProjectLabelsSection({
   const previewStyles = previewStylesFor(template);
 
   return (
-    <section ref={sectionRef} className="mb-6 bg-white border border-cream-dark p-4 md:p-6">
+    <section ref={sectionRef} className={shellClass}>
       <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 mb-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Printer size={16} className="text-gold" />
-            <h3 className="text-sm font-medium uppercase tracking-wider text-charcoal/70">Inventory Labels</h3>
-          </div>
+          {!embedded && (
+            <div className="flex items-center gap-2 mb-1">
+              <Printer size={16} className="text-gold" />
+              <h3 className="text-sm font-medium uppercase tracking-wider text-charcoal/70">Inventory Labels</h3>
+            </div>
+          )}
           <p className="text-sm text-charcoal/50">
             {labels.length} label{labels.length === 1 ? '' : 's'} · {labelTitle}
           </p>

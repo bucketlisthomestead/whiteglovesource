@@ -19,9 +19,11 @@ import { PieceCatalogItem } from '../entities/piece-catalog-item.entity';
 import { StorageLocation } from '../entities/storage-location.entity';
 import {
   ConditionRating,
+  ChangeOrderType,
   PieceStage,
   ProjectStatus,
   QuoteStatus,
+  StorageType,
   PROJECT_STATUS_LABELS,
 } from '../common/enums';
 import { EmailService } from '../email/email.service';
@@ -34,6 +36,8 @@ import {
   CreateAdminUserDto,
   UpdateAdminUserDto,
   CreateStorageLocationDto,
+  CreateScopeReductionQuoteDto,
+  ScopeReductionPreviewDto,
   UpdateProjectDto,
   UpdateStorageLocationDto,
 } from '../common/admin.dto';
@@ -53,7 +57,10 @@ import {
   parseDashboardDateRange,
   parseOptionalDateRange,
 } from './dashboard-date.util';
-import { calculateQuoteEstimate } from '../common/quote-pricing';
+import {
+  calculateQuoteEstimate,
+  buildCreditLineItemsForGroups,
+} from '../common/quote-pricing';
 
 const QUOTE_PRICING_FIELDS = [
   'mileRate',
@@ -246,6 +253,441 @@ export class AdminService {
     return this.projectsService.findOne(project.id);
   }
 
+  async createChangeOrderQuote(projectId: string, user?: User) {
+    const project = await this.projectRepo.findOne({
+      where: { id: projectId },
+      relations: { client: true },
+    });
+    if (!project) throw new NotFoundException('Project not found');
+    if (project.isDemo) {
+      throw new BadRequestException('Cannot add change orders to the demo project');
+    }
+
+    const existingCount = await this.quoteRepo.count({
+      where: { parentProjectId: projectId },
+    });
+    const changeOrderNumber = existingCount + 1;
+
+    const quote = await this.quoteRepo.save(
+      this.quoteRepo.create({
+        contactName: project.client.name,
+        email: project.client.email,
+        phone: project.client.phone ?? null,
+        company: null,
+        serviceType: `Change order #${changeOrderNumber}`,
+        projectDescription: `Additional furnishings and services for ${project.name}`,
+        propertyAddress: project.propertyAddress,
+        pickupAddress: project.propertyAddress,
+        preferredDate: project.targetInstallDate ?? null,
+        status: QuoteStatus.PENDING,
+        parentProjectId: projectId,
+        changeOrderNumber,
+        changeOrderType: ChangeOrderType.ADDITION,
+        mileRate: project.mileRate,
+        projectBaseFee: project.projectBaseFee,
+        additionalPickupSurcharge: project.additionalPickupSurcharge,
+        minimumQuote: project.minimumQuote,
+        rooms: [],
+        milesToStorage: 0,
+        milesToInstall: 0,
+        storageMonths: 1,
+        storageType: StorageType.STANDARD_CLIMATE,
+        pickupLocationCount: 1,
+      }),
+    );
+
+    if (user) {
+      await this.recordAudit.recordQuoteUpdate(
+        user,
+        quote.id,
+        {},
+        this.recordAudit.quoteSnapshot(quote),
+      );
+    }
+
+    return quote;
+  }
+
+  async listProjectChangeOrders(projectId: string) {
+    const project = await this.projectRepo.findOne({ where: { id: projectId } });
+    if (!project) throw new NotFoundException('Project not found');
+
+    const orders = await this.quoteRepo.find({
+      where: { parentProjectId: projectId },
+      order: { changeOrderNumber: 'ASC' },
+    });
+
+    return orders.map((q) => ({
+      id: q.id,
+      changeOrderNumber: q.changeOrderNumber,
+      changeOrderType: q.changeOrderType ?? ChangeOrderType.ADDITION,
+      serviceType: q.serviceType,
+      status: q.status,
+      quotedAmount: q.quotedAmount != null ? Number(q.quotedAmount) : null,
+      estimatedTotal: q.estimatedTotal != null ? Number(q.estimatedTotal) : null,
+      estimatedPieces: q.estimatedPieces ?? null,
+      roomCount: q.rooms?.length ?? 0,
+      removalPieceCount: q.removalTargets?.pieceIds?.length ?? 0,
+      appliedAt: q.appliedAt?.toISOString() ?? null,
+      createdAt: q.createdAt.toISOString(),
+      updatedAt: q.updatedAt.toISOString(),
+    }));
+  }
+
+  async previewScopeReduction(
+    projectId: string,
+    dto: ScopeReductionPreviewDto,
+  ) {
+    const project = await this.projectRepo.findOne({
+      where: { id: projectId },
+      relations: { rooms: true },
+    });
+    if (!project) throw new NotFoundException('Project not found');
+    if (project.isDemo) {
+      throw new BadRequestException('Cannot reduce scope on the demo project');
+    }
+
+    const pieceIds = dto.pieceIds ?? [];
+    const roomIds = dto.roomIds ?? [];
+    if (!pieceIds.length && !roomIds.length) {
+      throw new BadRequestException('Select at least one room or piece to remove');
+    }
+
+    const pieces = await this.resolveRemovalPieces(projectId, pieceIds, roomIds);
+    if (!pieces.length) {
+      throw new BadRequestException('No matching inventory found for removal');
+    }
+
+    const catalog = await this.catalogRepo.find();
+    const pricingContext = await this.getProjectQuotePricingContext(projectId);
+    const rates = await this.settingsService.resolveQuotePricing(pricingContext);
+    const groups = this.groupPiecesForCredit(pieces, catalog);
+    const proposedLineItems = buildCreditLineItemsForGroups(
+      groups,
+      {
+        storageMonths: pricingContext.storageMonths,
+        storageType: pricingContext.storageType,
+      },
+      catalog.map((c) => ({
+        id: c.id,
+        name: c.name,
+        category: c.category,
+        pickupFee: Number(c.pickupFee),
+        storageFeeMonthly: Number(c.storageFeeMonthly),
+        installFee: Number(c.installFee),
+      })),
+      rates,
+    );
+
+    const creditTotal = proposedLineItems.reduce(
+      (sum, line) => sum + Number(line.amount),
+      0,
+    );
+
+    return {
+      pieces: pieces.map((p) => ({
+        id: p.id,
+        name: p.name,
+        roomId: p.roomId,
+        roomName: p.room?.name ?? 'Unassigned',
+        catalogItemId: p.catalogItemId,
+      })),
+      proposedLineItems,
+      creditTotal,
+      storageMonths: pricingContext.storageMonths,
+      storageType: pricingContext.storageType,
+    };
+  }
+
+  async createScopeReductionQuote(
+    projectId: string,
+    dto: CreateScopeReductionQuoteDto,
+    user?: User,
+  ) {
+    const preview = await this.previewScopeReduction(projectId, dto);
+    const selectedKeys = new Set(dto.selectedLineItemKeys);
+    const selectedLineItems = preview.proposedLineItems.filter((line) =>
+      selectedKeys.has(line.key),
+    );
+    if (!selectedLineItems.length) {
+      throw new BadRequestException('Select at least one credit line item');
+    }
+
+    const project = await this.projectRepo.findOne({
+      where: { id: projectId },
+      relations: { client: true },
+    });
+    if (!project) throw new NotFoundException('Project not found');
+
+    const existingCount = await this.quoteRepo.count({
+      where: { parentProjectId: projectId },
+    });
+    const changeOrderNumber = existingCount + 1;
+    const creditTotal = selectedLineItems.reduce(
+      (sum, line) => sum + Number(line.amount),
+      0,
+    );
+
+    const pieceIds = preview.pieces.map((p) => p.id);
+    const roomIds = dto.roomIds ?? [];
+
+    const quote = await this.quoteRepo.save(
+      this.quoteRepo.create({
+        contactName: project.client.name,
+        email: project.client.email,
+        phone: project.client.phone ?? null,
+        company: null,
+        serviceType: `Scope reduction #${changeOrderNumber}`,
+        projectDescription: `Remove furnishings from ${project.name}`,
+        propertyAddress: project.propertyAddress,
+        pickupAddress: project.propertyAddress,
+        preferredDate: project.targetInstallDate ?? null,
+        status: QuoteStatus.PENDING,
+        parentProjectId: projectId,
+        changeOrderNumber,
+        changeOrderType: ChangeOrderType.REDUCTION,
+        removalTargets: { pieceIds, roomIds },
+        creditLineItems: selectedLineItems.map(
+          ({ key: _key, roomName: _room, catalogItemId: _cat, catalogName: _name, ...line }) =>
+            line,
+        ),
+        lineItems: selectedLineItems.map(
+          ({ key: _key, roomName: _room, catalogItemId: _cat, catalogName: _name, ...line }) =>
+            line,
+        ),
+        quotedAmount: creditTotal,
+        estimatedTotal: creditTotal,
+        estimatedPieces: pieceIds.length,
+        mileRate: project.mileRate,
+        projectBaseFee: project.projectBaseFee,
+        additionalPickupSurcharge: project.additionalPickupSurcharge,
+        minimumQuote: project.minimumQuote,
+        rooms: [],
+        milesToStorage: 0,
+        milesToInstall: 0,
+        storageMonths: preview.storageMonths,
+        storageType: preview.storageType,
+        pickupLocationCount: 1,
+      }),
+    );
+
+    if (user) {
+      await this.recordAudit.recordQuoteUpdate(
+        user,
+        quote.id,
+        {},
+        this.recordAudit.quoteSnapshot(quote),
+      );
+    }
+
+    return quote;
+  }
+
+  async applyChangeOrderToProject(quoteId: string, user?: User) {
+    const quote = await this.quoteRepo.findOne({ where: { id: quoteId } });
+    if (!quote) throw new NotFoundException('Quote not found');
+    if (!quote.parentProjectId) {
+      throw new BadRequestException('This quote is not a project change order');
+    }
+    if (quote.status !== QuoteStatus.ACCEPTED) {
+      throw new BadRequestException(
+        'Change order must be accepted before applying to the project',
+      );
+    }
+    if (quote.appliedAt) {
+      throw new BadRequestException('This change order has already been applied');
+    }
+
+    const isReduction = quote.changeOrderType === ChangeOrderType.REDUCTION;
+
+    if (isReduction) {
+      if (!quote.removalTargets?.pieceIds?.length) {
+        throw new BadRequestException('Reduction quote has no removal targets');
+      }
+      if (!quote.creditLineItems?.length) {
+        throw new BadRequestException('Reduction quote has no credit line items');
+      }
+
+      const project = await this.projectRepo.findOne({
+        where: { id: quote.parentProjectId },
+      });
+      if (!project) throw new NotFoundException('Parent project not found');
+
+      const removed = await this.applyScopeReductionToProject(
+        quote.parentProjectId,
+        quote.removalTargets,
+      );
+
+      quote.appliedAt = new Date();
+      await this.quoteRepo.save(quote);
+
+      if (user) {
+        await this.recordAudit.recordQuoteUpdate(
+          user,
+          quote.id,
+          {},
+          this.recordAudit.quoteSnapshot(quote),
+        );
+      }
+
+      return {
+        projectId: quote.parentProjectId,
+        appliedAt: quote.appliedAt.toISOString(),
+        piecesRemoved: removed.piecesRemoved,
+        roomsRemoved: removed.roomsRemoved,
+      };
+    }
+
+    if (!quote.rooms?.length) {
+      throw new BadRequestException('Add rooms and catalogue items before applying');
+    }
+
+    const project = await this.projectRepo.findOne({
+      where: { id: quote.parentProjectId },
+    });
+    if (!project) throw new NotFoundException('Parent project not found');
+
+    const added = await this.mergeQuoteRoomsIntoProject(
+      quote.parentProjectId,
+      quote.rooms,
+      true,
+    );
+
+    quote.appliedAt = new Date();
+    await this.quoteRepo.save(quote);
+
+    if (user) {
+      await this.recordAudit.recordQuoteUpdate(
+        user,
+        quote.id,
+        {},
+        this.recordAudit.quoteSnapshot(quote),
+      );
+    }
+
+    return {
+      projectId: quote.parentProjectId,
+      appliedAt: quote.appliedAt.toISOString(),
+      roomsAdded: added.roomsAdded,
+      piecesAdded: added.piecesAdded,
+    };
+  }
+
+  private async applyScopeReductionToProject(
+    projectId: string,
+    targets: NonNullable<QuoteRequest['removalTargets']>,
+  ) {
+    const pieces = await this.pieceRepo.find({
+      where: { id: In(targets.pieceIds), projectId },
+    });
+    if (pieces.length !== targets.pieceIds.length) {
+      throw new BadRequestException(
+        'Some pieces were not found — refresh and try again',
+      );
+    }
+
+    await this.pieceRepo.delete({ id: In(targets.pieceIds), projectId });
+
+    let roomsRemoved = 0;
+    const roomIdsToCheck = new Set([
+      ...targets.roomIds,
+      ...pieces.map((p) => p.roomId).filter((id): id is string => !!id),
+    ]);
+
+    for (const roomId of roomIdsToCheck) {
+      const remaining = await this.pieceRepo.count({ where: { roomId, projectId } });
+      if (remaining === 0) {
+        await this.roomRepo.delete({ id: roomId, projectId });
+        roomsRemoved++;
+      }
+    }
+
+    return { piecesRemoved: pieces.length, roomsRemoved };
+  }
+
+  private async resolveRemovalPieces(
+    projectId: string,
+    pieceIds: string[],
+    roomIds: string[],
+  ): Promise<Piece[]> {
+    const pieces: Piece[] = [];
+    if (pieceIds.length) {
+      const found = await this.pieceRepo.find({
+        where: { id: In(pieceIds), projectId },
+        relations: { room: true },
+      });
+      pieces.push(...found);
+    }
+    if (roomIds.length) {
+      const roomPieces = await this.pieceRepo.find({
+        where: { projectId, roomId: In(roomIds) },
+        relations: { room: true },
+      });
+      for (const piece of roomPieces) {
+        if (!pieces.some((p) => p.id === piece.id)) pieces.push(piece);
+      }
+    }
+    return pieces;
+  }
+
+  private groupPiecesForCredit(
+    pieces: Piece[],
+    catalog: PieceCatalogItem[],
+  ): { roomName: string; catalogItemId: string; quantity: number }[] {
+    const groupMap = new Map<
+      string,
+      { roomName: string; catalogItemId: string; quantity: number }
+    >();
+
+    for (const piece of pieces) {
+      const catalogItemId = this.resolveCatalogIdForPiece(piece, catalog);
+      if (!catalogItemId) continue;
+      const roomName = piece.room?.name ?? 'Unassigned';
+      const key = `${roomName.toLowerCase()}|${catalogItemId}`;
+      const existing = groupMap.get(key);
+      if (existing) {
+        existing.quantity += 1;
+      } else {
+        groupMap.set(key, { roomName, catalogItemId, quantity: 1 });
+      }
+    }
+
+    const groups = [...groupMap.values()];
+    if (!groups.length) {
+      throw new BadRequestException(
+        'Could not match selected pieces to catalogue pricing — ensure pieces were created from quotes',
+      );
+    }
+    return groups;
+  }
+
+  private resolveCatalogIdForPiece(
+    piece: Piece,
+    catalog: PieceCatalogItem[],
+  ): string | null {
+    if (piece.catalogItemId) return piece.catalogItemId;
+    const baseName = piece.name.replace(/ \(\d+ of \d+\)$/, '').trim().toLowerCase();
+    const match = catalog.find((c) => c.name.trim().toLowerCase() === baseName);
+    return match?.id ?? null;
+  }
+
+  private async getProjectQuotePricingContext(projectId: string) {
+    const original = await this.quoteRepo.findOne({ where: { projectId } });
+    if (original) return original;
+
+    const project = await this.projectRepo.findOne({ where: { id: projectId } });
+    if (!project) throw new NotFoundException('Project not found');
+
+    return {
+      storageMonths: 1,
+      storageType: StorageType.STANDARD_CLIMATE,
+      mileRate: project.mileRate,
+      projectBaseFee: project.projectBaseFee,
+      additionalPickupSurcharge: project.additionalPickupSurcharge,
+      minimumQuote: project.minimumQuote,
+    } as QuoteRequest;
+  }
+
   private static readonly PROJECT_STATUS_ORDER: ProjectStatus[] = [
     ProjectStatus.PLANNING,
     ProjectStatus.PICKUP_STORAGE,
@@ -308,6 +750,14 @@ export class AdminService {
     projectId: string,
     rooms: NonNullable<QuoteRequest['rooms']>,
   ) {
+    await this.mergeQuoteRoomsIntoProject(projectId, rooms, false);
+  }
+
+  private async mergeQuoteRoomsIntoProject(
+    projectId: string,
+    rooms: NonNullable<QuoteRequest['rooms']>,
+    mergeExistingRooms: boolean,
+  ) {
     const catalogIds = [
       ...new Set(rooms.flatMap((r) => r.items.map((i) => i.catalogItemId))),
     ];
@@ -319,15 +769,40 @@ export class AdminService {
       : [];
     const catalogMap = new Map(catalogItems.map((c) => [c.id, c]));
 
-    for (let roomIndex = 0; roomIndex < rooms.length; roomIndex++) {
-      const roomInput = rooms[roomIndex];
-      const room = await this.roomRepo.save(
-        this.roomRepo.create({
-          projectId,
-          name: roomInput.name,
-          sortOrder: roomIndex,
-        }),
-      );
+    const existingRooms = mergeExistingRooms
+      ? await this.roomRepo.find({
+          where: { projectId },
+          order: { sortOrder: 'ASC' },
+        })
+      : [];
+    const roomByName = new Map(
+      existingRooms.map((r) => [r.name.trim().toLowerCase(), r]),
+    );
+    let nextSort =
+      existingRooms.length > 0
+        ? Math.max(...existingRooms.map((r) => r.sortOrder)) + 1
+        : 0;
+
+    let roomsAdded = 0;
+    let piecesAdded = 0;
+
+    for (const roomInput of rooms) {
+      const key = roomInput.name.trim().toLowerCase();
+      let room = mergeExistingRooms ? roomByName.get(key) : undefined;
+
+      if (!room) {
+        room = await this.roomRepo.save(
+          this.roomRepo.create({
+            projectId,
+            name: roomInput.name.trim(),
+            sortOrder: nextSort++,
+          }),
+        );
+        if (mergeExistingRooms) {
+          roomByName.set(key, room);
+        }
+        roomsAdded++;
+      }
 
       for (const item of roomInput.items) {
         const catalog = catalogMap.get(item.catalogItemId);
@@ -340,6 +815,7 @@ export class AdminService {
             this.pieceRepo.create({
               projectId,
               roomId: room.id,
+              catalogItemId: item.catalogItemId,
               name: `${catalog.name}${suffix}`,
               description: catalog.description,
               currentStage: PieceStage.IDENTIFIED,
@@ -348,9 +824,12 @@ export class AdminService {
               scanToken: generateScanToken(),
             }),
           );
+          piecesAdded++;
         }
       }
     }
+
+    return { roomsAdded, piecesAdded };
   }
 
   private async findOrCreateClientFromQuote(quote: QuoteRequest) {
@@ -836,7 +1315,7 @@ export class AdminService {
     const quote = await this.quoteRepo.findOne({ where: { id } });
     if (!quote) throw new NotFoundException('Quote not found');
 
-    if (quote.projectId) {
+    if (quote.projectId || quote.parentProjectId) {
       for (const field of QUOTE_PRICING_FIELDS) {
         if (dto[field] !== undefined) {
           throw new BadRequestException(
@@ -873,7 +1352,7 @@ export class AdminService {
     if (dto.storageType != null) quote.storageType = dto.storageType;
     if (dto.pickupLocationCount != null)
       quote.pickupLocationCount = dto.pickupLocationCount;
-    if (!quote.projectId) {
+    if (!quote.projectId && !quote.parentProjectId) {
       if (dto.mileRate !== undefined) quote.mileRate = dto.mileRate;
       if (dto.projectBaseFee !== undefined)
         quote.projectBaseFee = dto.projectBaseFee;
@@ -883,6 +1362,7 @@ export class AdminService {
       if (dto.minimumQuote !== undefined) quote.minimumQuote = dto.minimumQuote;
     }
     if (dto.isActive != null) quote.isActive = dto.isActive;
+    if (dto.rooms !== undefined) quote.rooms = dto.rooms;
 
     await this.recalculateQuoteEstimate(quote);
 

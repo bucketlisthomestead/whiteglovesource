@@ -79,6 +79,8 @@ export type ConditionRating =
 
 export type QuoteStatus = 'lead' | 'pending' | 'reviewing' | 'quoted' | 'accepted' | 'declined';
 
+export type ChangeOrderType = 'addition' | 'reduction';
+
 export type StorageType = 'standard_climate' | 'premium_climate' | 'short_term';
 
 export type PieceCatalogCategory =
@@ -196,6 +198,7 @@ export interface Piece {
   pickupLocationId?: string | null;
   room?: Room | null;
   roomId?: string | null;
+  catalogItemId?: string | null;
   scanToken?: string | null;
   projectId?: string;
   stagePhotos?: PieceStagePhoto[];
@@ -358,6 +361,11 @@ export interface QuoteRequest extends QuoteForm {
   estimatedTotal?: number;
   lineItems?: QuoteLineItem[];
   projectId?: string | null;
+  parentProjectId?: string | null;
+  changeOrderNumber?: number | null;
+  changeOrderType?: ChangeOrderType | null;
+  appliedAt?: string | null;
+  creditLineItems?: QuoteLineItem[] | null;
   storageLocationId?: string | null;
   storageLocationName?: string | null;
   internalNotes?: string | null;
@@ -367,6 +375,43 @@ export interface QuoteRequest extends QuoteForm {
   minimumQuote?: number;
   deliveryMileRate?: never;
   createdAt: string;
+}
+
+export interface ChangeOrderSummary {
+  id: string;
+  changeOrderNumber: number | null;
+  changeOrderType: ChangeOrderType;
+  serviceType: string;
+  status: QuoteStatus;
+  quotedAmount: number | null;
+  estimatedTotal: number | null;
+  estimatedPieces: number | null;
+  roomCount: number;
+  removalPieceCount?: number;
+  appliedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreditLineItemPreview extends QuoteLineItem {
+  key: string;
+  roomName: string;
+  catalogItemId: string;
+  catalogName: string;
+}
+
+export interface ScopeReductionPreview {
+  pieces: {
+    id: string;
+    name: string;
+    roomId: string | null;
+    roomName: string;
+    catalogItemId: string | null;
+  }[];
+  proposedLineItems: CreditLineItemPreview[];
+  creditTotal: number;
+  storageMonths: number;
+  storageType: StorageType;
 }
 
 export interface UpdateAdminQuoteForm {
@@ -393,6 +438,7 @@ export interface UpdateAdminQuoteForm {
   additionalPickupSurcharge?: number | null;
   minimumQuote?: number | null;
   isActive?: boolean;
+  rooms?: QuoteRoom[];
 }
 
 export interface StorageLocation {
@@ -793,6 +839,19 @@ export interface ProjectPhasePayment {
   capturedByName: string | null;
   note: string | null;
   updatedAt: string | null;
+}
+
+export interface ContractAmendment {
+  id: string;
+  projectId: string;
+  quoteId: string;
+  versionNumber: number;
+  changeOrderNumber: number | null;
+  proposalFilename: string;
+  quotedAmount: number | null;
+  generatedByName: string | null;
+  createdAt: string;
+  downloadUrl: string;
 }
 
 export interface ContractProposal {

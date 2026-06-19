@@ -22,7 +22,7 @@ import { UserRole } from '../common/roles';
 import { User } from '../entities/user.entity';
 import { ProjectsService } from '../projects/projects.service';
 import { ContractsService } from './contracts.service';
-import { CaptureContractSignatureDto } from '../common/contract.dto';
+import { CaptureContractSignatureDto, GenerateContractAmendmentDto } from '../common/contract.dto';
 
 @Controller('projects')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -39,6 +39,42 @@ export class ContractsController {
   @Post(':id/contract/generate')
   generate(@Param('id') id: string, @Req() req: { user: User }) {
     return this.contractsService.generateProposal(id, req.user);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.DESIGNER, UserRole.CLIENT)
+  @Get(':id/contract/amendments')
+  listAmendments(@Param('id') id: string, @Req() req: { user: User }) {
+    return this.contractsService.listAmendments(id, req.user);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.DESIGNER)
+  @Post(':id/contract/amendments')
+  generateAmendment(
+    @Param('id') id: string,
+    @Body() dto: GenerateContractAmendmentDto,
+    @Req() req: { user: User },
+  ) {
+    return this.contractsService.generateAmendment(id, dto.quoteId, req.user);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.DESIGNER, UserRole.CLIENT)
+  @Get(':id/contract/amendments/:amendmentId/download')
+  async downloadAmendment(
+    @Param('id') id: string,
+    @Param('amendmentId') amendmentId: string,
+    @Req() req: { user: User },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { buffer, filename } = await this.contractsService.readAmendmentFile(
+      id,
+      amendmentId,
+      req.user,
+    );
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="${filename}"`,
+    });
+    return new StreamableFile(buffer);
   }
 
   @Roles(UserRole.ADMIN, UserRole.DESIGNER, UserRole.CLIENT)

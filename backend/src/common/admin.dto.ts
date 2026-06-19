@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsBoolean,
   IsDateString,
   IsEmail,
@@ -15,6 +16,7 @@ import {
 import { Type } from 'class-transformer';
 import { UserRole } from './roles';
 import { StorageType, ProjectStatus } from './enums';
+import { QuoteRoomDto } from './quote.dto';
 
 export class CreateDesignerInputDto {
   @IsString()
@@ -242,6 +244,12 @@ export class AdminUpdateQuoteDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => QuoteRoomDto)
+  rooms?: QuoteRoomDto[];
 }
 
 export class CreateStorageLocationDto {
@@ -398,4 +406,32 @@ export class UpdateAdminUserDto {
   @IsOptional()
   @IsUUID()
   clientId?: string | null;
+}
+
+export class ScopeReductionPreviewDto {
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  pieceIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  roomIds?: string[];
+}
+
+export class CreateScopeReductionQuoteDto {
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  pieceIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  roomIds?: string[];
+
+  @IsArray()
+  @IsString({ each: true })
+  selectedLineItemKeys: string[];
 }

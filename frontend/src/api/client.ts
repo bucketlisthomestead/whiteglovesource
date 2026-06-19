@@ -204,6 +204,38 @@ export const updateProject = (id: string, data: UpdateProjectForm) =>
 export const createProjectFromQuote = (quoteId: string, data: CreateProjectFromQuoteForm) =>
   api.post<Project>(`/admin/quotes/${quoteId}/create-project`, data).then((r) => r.data);
 
+export const createChangeOrderQuote = (projectId: string) =>
+  api.post<QuoteRequest>(`/admin/projects/${projectId}/change-order-quote`).then((r) => r.data);
+
+export const previewScopeReduction = (
+  projectId: string,
+  data: { pieceIds?: string[]; roomIds?: string[] },
+) =>
+  api
+    .post<import('../types').ScopeReductionPreview>(
+      `/admin/projects/${projectId}/scope-reduction/preview`,
+      data,
+    )
+    .then((r) => r.data);
+
+export const createScopeReductionQuote = (
+  projectId: string,
+  data: { pieceIds?: string[]; roomIds?: string[]; selectedLineItemKeys: string[] },
+) =>
+  api
+    .post<QuoteRequest>(`/admin/projects/${projectId}/scope-reduction-quote`, data)
+    .then((r) => r.data);
+
+export const getProjectChangeOrders = (projectId: string) =>
+  api
+    .get<import('../types').ChangeOrderSummary[]>(`/admin/projects/${projectId}/change-orders`)
+    .then((r) => r.data);
+
+export const applyChangeOrderToProject = (quoteId: string) =>
+  api
+    .post<{ projectId: string; appliedAt: string }>(`/admin/quotes/${quoteId}/apply-to-project`)
+    .then((r) => r.data);
+
 export const getStorageLocations = () =>
   api.get<import('../types').StorageLocation[]>('/admin/storage-locations').then((r) => r.data);
 
@@ -407,6 +439,21 @@ export const downloadContractProposal = (projectId: string) =>
 
 export const downloadSignedContract = (projectId: string) =>
   downloadContractBlob(`/projects/${projectId}/contract/signed`);
+
+export const listContractAmendments = (projectId: string) =>
+  api
+    .get<import('../types').ContractAmendment[]>(`/projects/${projectId}/contract/amendments`)
+    .then((r) => r.data);
+
+export const generateContractAmendment = (projectId: string, quoteId: string) =>
+  api
+    .post<import('../types').ContractAmendment>(`/projects/${projectId}/contract/amendments`, {
+      quoteId,
+    })
+    .then((r) => r.data);
+
+export const downloadContractAmendment = (projectId: string, amendmentId: string) =>
+  downloadContractBlob(`/projects/${projectId}/contract/amendments/${amendmentId}/download`);
 
 export const getPublicSiteContent = () =>
   api.get<import('../types/siteContent').SiteContentBundle>('/site-content').then((r) => r.data);

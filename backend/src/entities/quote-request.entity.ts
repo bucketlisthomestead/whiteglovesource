@@ -5,8 +5,13 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { QuoteStatus, StorageType } from '../common/enums';
+import { QuoteStatus, StorageType, ChangeOrderType } from '../common/enums';
 import type { QuoteLineItem, QuoteRoomInput } from '../common/quote-pricing';
+
+export interface QuoteRemovalTargets {
+  pieceIds: string[];
+  roomIds: string[];
+}
 
 @Entity('quote_requests')
 export class QuoteRequest {
@@ -101,6 +106,32 @@ export class QuoteRequest {
 
   @Column({ type: 'varchar', length: 36, nullable: true })
   projectId: string | null;
+
+  /** Scope-addition quote for an existing project (change order). */
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  parentProjectId: string | null;
+
+  @Column({ type: 'int', nullable: true })
+  changeOrderNumber: number | null;
+
+  /** When rooms/pieces from this change order were merged into the project. */
+  @Column({ type: 'datetime', nullable: true })
+  appliedAt: Date | null;
+
+  @Column({
+    type: 'enum',
+    enum: ChangeOrderType,
+    nullable: true,
+  })
+  changeOrderType: ChangeOrderType | null;
+
+  /** Pieces and rooms to remove when a reduction change order is applied. */
+  @Column({ type: 'json', nullable: true })
+  removalTargets: QuoteRemovalTargets | null;
+
+  /** Selected credit line items for scope reduction quotes. */
+  @Column({ type: 'json', nullable: true })
+  creditLineItems: QuoteLineItem[] | null;
 
   @Column({ default: true })
   isActive: boolean;

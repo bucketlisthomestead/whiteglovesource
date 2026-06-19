@@ -1,4 +1,4 @@
-import { IsIn, IsString, MaxLength } from 'class-validator';
+import { IsIn, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class CaptureContractSignatureDto {
   @IsIn(['admin', 'client'])
@@ -11,4 +11,9 @@ export class CaptureContractSignatureDto {
   /** Base64 data URL (image/png) of canvas signature */
   @IsString()
   signatureDataUrl: string;
+}
+
+export class GenerateContractAmendmentDto {
+  @IsUUID()
+  quoteId: string;
 }

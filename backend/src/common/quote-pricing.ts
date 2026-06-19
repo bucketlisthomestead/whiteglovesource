@@ -189,3 +189,93 @@ export function calculateQuoteEstimate(
     milesToInstall: input.milesToInstall,
   };
 }
+
+export interface CreditLineItemPreview extends QuoteLineItem {
+  key: string;
+  roomName: string;
+  catalogItemId: string;
+  catalogName: string;
+}
+
+export function creditLineKey(
+  roomName: string,
+  catalogItemId: string,
+  category: string,
+): string {
+  return `${roomName}|${catalogItemId}|${category}`;
+}
+
+export function buildCreditLineItemsForGroups(
+  groups: { roomName: string; catalogItemId: string; quantity: number }[],
+  input: Pick<
+    QuoteEstimateInput,
+    'storageMonths' | 'storageType'
+  >,
+  catalog: CatalogItemPricing[],
+  rates: typeof PRICING_RATES = PRICING_RATES,
+): CreditLineItemPreview[] {
+  const catalogMap = new Map(catalog.map((c) => [c.id, c]));
+  const lineItems: CreditLineItemPreview[] = [];
+
+  const storageMultiplier =
+    input.storageType === StorageType.PREMIUM_CLIMATE
+      ? rates.storagePremiumMultiplier
+      : input.storageType === StorageType.SHORT_TERM
+        ? rates.storageShortTermMultiplier
+        : 1;
+
+  for (const group of groups) {
+    if (group.quantity < 1) continue;
+    const cat = catalogMap.get(group.catalogItemId);
+    if (!cat) continue;
+
+    const pickupAmt = cat.pickupFee * group.quantity;
+    const installAmt = cat.installFee * group.quantity;
+    const storageAmt =
+      cat.storageFeeMonthly *
+      group.quantity *
+      input.storageMonths *
+      storageMultiplier;
+
+    lineItems.push({
+      key: creditLineKey(group.roomName, group.catalogItemId, 'Handling'),
+      roomName: group.roomName,
+      catalogItemId: group.catalogItemId,
+      catalogName: cat.name,
+      category: 'Handling',
+      description: `${group.roomName}: ${cat.name} — pickup & receiving`,
+      quantity: group.quantity,
+      unitAmount: cat.pickupFee,
+      amount: pickupAmt,
+    });
+
+    if (input.storageMonths > 0) {
+      lineItems.push({
+        key: creditLineKey(group.roomName, group.catalogItemId, 'Storage'),
+        roomName: group.roomName,
+        catalogItemId: group.catalogItemId,
+        catalogName: cat.name,
+        category: 'Storage',
+        description: `${group.roomName}: ${cat.name} — ${input.storageMonths} mo storage`,
+        quantity: group.quantity,
+        unitAmount:
+          cat.storageFeeMonthly * input.storageMonths * storageMultiplier,
+        amount: storageAmt,
+      });
+    }
+
+    lineItems.push({
+      key: creditLineKey(group.roomName, group.catalogItemId, 'Installation'),
+      roomName: group.roomName,
+      catalogItemId: group.catalogItemId,
+      catalogName: cat.name,
+      category: 'Installation',
+      description: `${group.roomName}: ${cat.name} — delivery & placement`,
+      quantity: group.quantity,
+      unitAmount: cat.installFee,
+      amount: installAmt,
+    });
+  }
+
+  return lineItems;
+}

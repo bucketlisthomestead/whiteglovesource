@@ -112,6 +112,40 @@ export class AdminController {
     return this.adminService.updateProject(id, dto, req.user);
   }
 
+  @Get('projects/:id/change-orders')
+  @RequireAnyPermissions(PERMISSIONS.PROJECTS_MANAGE, PERMISSIONS.QUOTES_VIEW)
+  listProjectChangeOrders(@Param('id') id: string) {
+    return this.adminService.listProjectChangeOrders(id);
+  }
+
+  @Post('projects/:id/change-order-quote')
+  @RequirePermissions(PERMISSIONS.QUOTES_MANAGE)
+  createChangeOrderQuote(
+    @Param('id') id: string,
+    @Req() req: { user: User },
+  ) {
+    return this.adminService.createChangeOrderQuote(id, req.user);
+  }
+
+  @Post('projects/:id/scope-reduction/preview')
+  @RequirePermissions(PERMISSIONS.QUOTES_MANAGE)
+  previewScopeReduction(
+    @Param('id') id: string,
+    @Body() dto: import('../common/admin.dto').ScopeReductionPreviewDto,
+  ) {
+    return this.adminService.previewScopeReduction(id, dto);
+  }
+
+  @Post('projects/:id/scope-reduction-quote')
+  @RequirePermissions(PERMISSIONS.QUOTES_MANAGE)
+  createScopeReductionQuote(
+    @Param('id') id: string,
+    @Body() dto: import('../common/admin.dto').CreateScopeReductionQuoteDto,
+    @Req() req: { user: User },
+  ) {
+    return this.adminService.createScopeReductionQuote(id, dto, req.user);
+  }
+
   @Get('quotes/:id')
   @RequirePermissions(PERMISSIONS.QUOTES_VIEW)
   getQuote(@Param('id') id: string) {
@@ -125,6 +159,15 @@ export class AdminController {
     @Body() dto: CreateProjectFromQuoteDto,
   ) {
     return this.adminService.createProjectFromQuote(id, dto);
+  }
+
+  @Post('quotes/:id/apply-to-project')
+  @RequirePermissions(PERMISSIONS.QUOTES_MANAGE)
+  applyChangeOrderToProject(
+    @Param('id') id: string,
+    @Req() req: { user: User },
+  ) {
+    return this.adminService.applyChangeOrderToProject(id, req.user);
   }
 
   @Patch('quotes/:id')

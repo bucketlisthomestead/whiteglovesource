@@ -12,6 +12,8 @@ import {
   ContractProposalStatus,
   ContractSignatureMetadata,
 } from '../entities/contract-proposal.entity';
+import { ContractAmendment } from '../entities/contract-amendment.entity';
+import { QuoteRequest } from '../entities/quote-request.entity';
 import { Project } from '../entities/project.entity';
 import { Piece } from '../entities/piece.entity';
 import { StorageService } from '../storage/storage.service';
@@ -20,7 +22,7 @@ import { ProjectsService } from '../projects/projects.service';
 import { User } from '../entities/user.entity';
 import { UserRole } from '../common/roles';
 import { CaptureContractSignatureDto } from '../common/contract.dto';
-import { INSTALL_DEST_LABELS, PROJECT_STATUS_LABELS } from '../common/enums';
+import { INSTALL_DEST_LABELS, PROJECT_STATUS_LABELS, QuoteStatus } from '../common/enums';
 
 const SIGNED_UPLOAD_MIMES = new Set([
   'application/pdf',
@@ -50,11 +52,28 @@ export interface ContractProposalDto {
   signedDownloadUrl: string | null;
 }
 
+export interface ContractAmendmentDto {
+  id: string;
+  projectId: string;
+  quoteId: string;
+  versionNumber: number;
+  changeOrderNumber: number | null;
+  proposalFilename: string;
+  quotedAmount: number | null;
+  generatedByName: string | null;
+  createdAt: string;
+  downloadUrl: string;
+}
+
 @Injectable()
 export class ContractsService {
   constructor(
     @InjectRepository(ContractProposal)
     private readonly contractRepo: Repository<ContractProposal>,
+    @InjectRepository(ContractAmendment)
+    private readonly amendmentRepo: Repository<ContractAmendment>,
+    @InjectRepository(QuoteRequest)
+    private readonly quoteRepo: Repository<QuoteRequest>,
     @InjectRepository(Project)
     private readonly projectRepo: Repository<Project>,
     @InjectRepository(Piece)
@@ -476,6 +495,241 @@ export class ContractsService {
           `Document generated electronically by ${settings.businessName}. Sign physically or via the project portal when digital signatures are enabled.`,
           { align: 'center' },
         );
+
+      doc.end();
+    });
+  }
+
+  async listAmendments(
+    projectId: string,
+    user: User,
+  ): Promise<ContractAmendmentDto[]> {
+    await this.projectsService.assertProjectAccess(projectId, user);
+    const rows = await this.amendmentRepo.find({
+      where: { projectId },
+      order: { versionNumber: 'DESC' },
+      relations: { quote: true },
+    });
+    return rows.map((row) => this.serializeAmendment(row));
+  }
+
+  async generateAmendment(
+    projectId: string,
+    quoteId: string,
+    user: User,
+  ): Promise<ContractAmendmentDto> {
+    await this.projectsService.assertProjectAccess(projectId, user);
+    this.assertCanManage(user);
+
+    const quote = await this.quoteRepo.findOne({ where: { id: quoteId } });
+    if (!quote) throw new NotFoundException('Quote not found');
+    if (quote.parentProjectId !== projectId) {
+      throw new BadRequestException('Quote is not a change order for this project');
+    }
+    if (quote.status !== QuoteStatus.ACCEPTED) {
+      throw new BadRequestException(
+        'Change order must be accepted before generating a revised contract',
+      );
+    }
+
+    const project = await this.projectRepo.findOne({
+      where: { id: projectId },
+      relations: { designer: true, client: true },
+    });
+    if (!project) throw new NotFoundException('Project not found');
+
+    const settings = await this.settingsService.getSettings();
+    const versionNumber =
+      (await this.amendmentRepo.count({ where: { projectId } })) + 1;
+    const buffer = await this.renderAmendmentPdf(
+      project,
+      quote,
+      settings,
+      versionNumber,
+    );
+
+    const safeName =
+      project.name
+        .slice(0, 24)
+        .replace(/[^\w\s-]/g, '')
+        .trim() || 'project';
+    const dateStamp = new Date().toISOString().slice(0, 10);
+    const coNum = quote.changeOrderNumber ?? versionNumber;
+    const filename = `contract-amendment-co${coNum}-${safeName}-${dateStamp}.pdf`;
+    const storageKey = `uploads/projects/${projectId}/contracts/amendments/v${versionNumber}-${Date.now()}.pdf`;
+    const stored = await this.storage.saveAtKey(buffer, storageKey, 'application/pdf');
+
+    const amendment = await this.amendmentRepo.save(
+      this.amendmentRepo.create({
+        projectId,
+        quoteId,
+        versionNumber,
+        proposalStorageKey: stored.storageKey,
+        proposalFilename: filename,
+        quotedAmount: quote.quotedAmount ?? quote.estimatedTotal ?? null,
+        generatedByUserId: user.id,
+        generatedByName: user.name,
+      }),
+    );
+
+    return this.serializeAmendment(amendment, quote.changeOrderNumber);
+  }
+
+  async readAmendmentFile(
+    projectId: string,
+    amendmentId: string,
+    user: User,
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    await this.projectsService.assertProjectAccess(projectId, user);
+    const amendment = await this.amendmentRepo.findOne({
+      where: { id: amendmentId, projectId },
+    });
+    if (!amendment) throw new NotFoundException('Contract amendment not found');
+    const buffer = await this.storage.readFile(amendment.proposalStorageKey);
+    return { buffer, filename: amendment.proposalFilename };
+  }
+
+  private serializeAmendment(
+    row: ContractAmendment,
+    changeOrderNumber?: number | null,
+  ): ContractAmendmentDto {
+    return {
+      id: row.id,
+      projectId: row.projectId,
+      quoteId: row.quoteId,
+      versionNumber: row.versionNumber,
+      changeOrderNumber:
+        changeOrderNumber ?? row.quote?.changeOrderNumber ?? null,
+      proposalFilename: row.proposalFilename,
+      quotedAmount:
+        row.quotedAmount != null ? Number(row.quotedAmount) : null,
+      generatedByName: row.generatedByName,
+      createdAt: row.createdAt.toISOString(),
+      downloadUrl: `/api/projects/${row.projectId}/contract/amendments/${row.id}/download`,
+    };
+  }
+
+  private async renderAmendmentPdf(
+    project: Project,
+    quote: QuoteRequest,
+    settings: Awaited<ReturnType<SettingsService['getSettings']>>,
+    versionNumber: number,
+  ): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({
+        margin: 50,
+        size: 'LETTER',
+        bufferPages: true,
+      });
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      const generated = new Date().toLocaleString('en-US', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      });
+      const coLabel = quote.changeOrderNumber
+        ? `Change Order #${quote.changeOrderNumber}`
+        : `Amendment #${versionNumber}`;
+      const isReduction = quote.changeOrderType === 'reduction';
+      const amount =
+        quote.quotedAmount != null
+          ? Number(quote.quotedAmount)
+          : quote.estimatedTotal != null
+            ? Number(quote.estimatedTotal)
+            : null;
+
+      doc
+        .fontSize(20)
+        .fillColor('#1a1a1a')
+        .text(settings.businessName, { align: 'center' });
+      doc
+        .fontSize(12)
+        .fillColor('#555')
+        .text(
+          isReduction
+            ? 'Contract Amendment — Scope Reduction'
+            : 'Contract Amendment — Additional Scope',
+          { align: 'center' },
+        );
+      doc.moveDown(1);
+      doc.fillColor('#000').fontSize(11);
+      doc.text(`Project: ${project.name}`);
+      doc.text(`Amendment: ${coLabel}`);
+      doc.text(`Prepared: ${generated}`);
+      doc.text(`Client: ${project.client.name}`);
+      doc.moveDown(0.8);
+
+      doc
+        .fontSize(12)
+        .fillColor('#1a1a1a')
+        .text(isReduction ? 'Removed Scope' : 'Additional Scope', {
+          underline: true,
+        });
+      doc.fontSize(9).fillColor('#333').moveDown(0.3);
+      doc.text(quote.projectDescription?.trim() || '—', { align: 'justify' });
+      doc.moveDown(0.5);
+
+      if (quote.rooms?.length && !isReduction) {
+        doc.fontSize(10).fillColor('#1a1a1a').text('Rooms & Items', {
+          underline: true,
+        });
+        doc.fontSize(9).fillColor('#333').moveDown(0.2);
+        for (const room of quote.rooms) {
+          const itemSummary = room.items
+            .filter((i) => i.quantity > 0)
+            .map((i) => `${i.quantity}× catalogue item`)
+            .join(', ');
+          doc.text(
+            `• ${room.name}${itemSummary ? ` — ${itemSummary}` : ''}`,
+          );
+        }
+        doc.moveDown(0.5);
+      }
+
+      const lineItems =
+        isReduction && quote.creditLineItems?.length
+          ? quote.creditLineItems
+          : quote.lineItems;
+
+      if (lineItems?.length) {
+        doc.fontSize(10).fillColor('#1a1a1a').text('Pricing Summary', {
+          underline: true,
+        });
+        doc.fontSize(9).fillColor('#333').moveDown(0.2);
+        for (const line of lineItems) {
+          const prefix = isReduction ? '− ' : '• ';
+          doc.text(
+            `${prefix}${line.description}: $${Number(line.amount).toFixed(2)}`,
+          );
+        }
+        doc.moveDown(0.3);
+      }
+
+      if (amount != null) {
+        doc
+          .fontSize(11)
+          .fillColor('#1a1a1a')
+          .text(
+            isReduction
+              ? `Contract credit: $${amount.toFixed(2)}`
+              : `Additional contract value: $${amount.toFixed(2)}`,
+            { underline: true },
+          );
+      }
+
+      doc.moveDown(1);
+      doc.fontSize(9).fillColor('#666');
+      doc.text(
+        'This amendment supplements the original service agreement. All prior terms remain in effect unless modified herein.',
+        { align: 'justify' },
+      );
+      doc.moveDown(1);
+      doc.text('Business Representative: _________________________  Date: ______');
+      doc.moveDown(0.8);
+      doc.text('Client: _________________________  Date: ______');
 
       doc.end();
     });

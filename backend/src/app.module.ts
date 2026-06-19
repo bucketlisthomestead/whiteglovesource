@@ -48,6 +48,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { SettingsModule } from './settings/settings.module';
 import { AuditModule } from './audit/audit.module';
 import { ContractProposal } from './entities/contract-proposal.entity';
+import { ContractAmendment } from './entities/contract-amendment.entity';
 import { ContractsModule } from './contracts/contracts.module';
 import { ProjectPhasePayment } from './entities/project-phase-payment.entity';
 import { PhasePaymentsModule } from './phase-payments/phase-payments.module';
@@ -101,6 +102,7 @@ import { ScanModule } from './scan/scan.module';
           QuoteMessage,
           AppRole,
           ContractProposal,
+          ContractAmendment,
           ProjectPhasePayment,
           SiteContentVersion,
           SiteContentDraft,

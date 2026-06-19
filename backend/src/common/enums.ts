@@ -76,6 +76,11 @@ export enum QuoteStatus {
   DECLINED = 'declined',
 }
 
+export enum ChangeOrderType {
+  ADDITION = 'addition',
+  REDUCTION = 'reduction',
+}
+
 export enum StorageType {
   STANDARD_CLIMATE = 'standard_climate',
   PREMIUM_CLIMATE = 'premium_climate',

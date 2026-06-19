@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ContractProposal } from '../entities/contract-proposal.entity';
+import { ContractAmendment } from '../entities/contract-amendment.entity';
+import { QuoteRequest } from '../entities/quote-request.entity';
 import { Project } from '../entities/project.entity';
 import { Piece } from '../entities/piece.entity';
 import { ContractsService } from './contracts.service';
@@ -10,7 +12,13 @@ import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ContractProposal, Project, Piece]),
+    TypeOrmModule.forFeature([
+      ContractProposal,
+      ContractAmendment,
+      QuoteRequest,
+      Project,
+      Piece,
+    ]),
     ProjectsModule,
     SettingsModule,
   ],
