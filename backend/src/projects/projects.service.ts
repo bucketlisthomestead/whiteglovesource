@@ -209,6 +209,7 @@ export class ProjectsService {
     return {
       projectId: project.id,
       projectName: project.name,
+      labelTitle: displayProjectName(project.id, project.name),
       jobNumber: formatJobNumber(project.id),
       printedAt: new Date().toISOString(),
       labels,

@@ -79,7 +79,7 @@ export class ProjectLabelPdfService {
     );
 
     const buffer = await this.generator.generate(items, template, {
-      jobNumber: labelData.jobNumber,
+      labelTitle: labelData.labelTitle,
       printedAt,
       projectName: labelData.projectName,
     });

@@ -14,8 +14,10 @@ export interface LabelPdfItem {
 }
 
 export interface LabelPdfMeta {
-  jobNumber: string;
+  /** Primary header line on each label (project display name). */
+  labelTitle: string;
   printedAt: string;
+  /** Used for PDF filename. */
   projectName: string;
 }
 
@@ -67,7 +69,7 @@ function drawLabel(
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(template.labelHeight <= 1.05 ? 7 : 8);
-  doc.text(meta.jobNumber, textX, textY, { maxWidth: textWidth });
+  doc.text(truncateText(doc, meta.labelTitle, textWidth), textX, textY, { maxWidth: textWidth });
 
   textY += template.labelHeight <= 1.05 ? 0.11 : 0.14;
   doc.setFont('helvetica', 'bold');

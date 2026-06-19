@@ -6,7 +6,7 @@ import { getProject, getProjectLabels, getDemoProject, generateProjectLabelPdf, 
 import { loadDemoProject } from '../offline/demoSession';
 import { useAuth } from '../context/AuthContext';
 import { PERMISSIONS, hasAnyPermission } from '../lib/permissions';
-import { buildScanUrl, formatJobNumber, formatLabelDate } from '../lib/scan';
+import { buildScanUrl, displayProjectName, formatLabelDate } from '../lib/scan';
 import {
   DEFAULT_LABEL_TEMPLATE_ID,
   LABEL_SHEET_TEMPLATES,

@@ -15,8 +15,10 @@ export interface LabelPdfItem {
 }
 
 export interface LabelPdfMeta {
-  jobNumber: string;
+  /** Primary header line on each label (project display name). */
+  labelTitle: string;
   printedAt: string;
+  /** Used for PDF filename. */
   projectName: string;
 }
 
@@ -193,7 +195,10 @@ export class LabelPdfGenerator {
     doc.font('Helvetica-Bold');
     doc.fontSize(compact ? 7 : 8);
     doc.fillColor('#000000');
-    doc.text(meta.jobNumber, textX, textY, { width: textWidth, lineBreak: false });
+    doc.text(truncateText(doc, meta.labelTitle, textWidth), textX, textY, {
+      width: textWidth,
+      lineBreak: false,
+    });
 
     textY += inchesToPt(compact ? 0.11 : 0.14);
     doc.font('Helvetica-Bold');
