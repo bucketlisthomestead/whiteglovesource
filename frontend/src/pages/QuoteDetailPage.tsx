@@ -46,6 +46,7 @@ import {
   SERVICE_TYPES,
   STORAGE_TYPE_LABELS,
 } from '../lib/labels';
+import { suggestProjectNameFromQuote } from '../lib/scan';
 
 const QUOTE_STATUSES: QuoteStatus[] = [
   'lead',
@@ -144,7 +145,7 @@ export function QuoteDetailPage() {
       const matchedClient = c.find((client) => client.email === q.email);
       setFromQuote({
         designerId: d[0]?.id || '',
-        name: `${q.contactName}${q.propertyAddress ? ` — ${q.propertyAddress.split(',')[0]}` : ''}`,
+        name: suggestProjectNameFromQuote(q),
         clientId: matchedClient?.id || '',
       });
       setQuoteDesignerMode('existing');
@@ -276,11 +277,12 @@ export function QuoteDetailPage() {
         ));
 
   const handleCreateProject = async () => {
-    if (!quote || !isQuoteDesignerReady || !isQuoteClientReady) return;
+    const projectName = fromQuote.name.trim();
+    if (!quote || !projectName || !isQuoteDesignerReady || !isQuoteClientReady) return;
     setSaving(true);
     try {
       const project = await createProjectFromQuote(quote.id, {
-        name: fromQuote.name || undefined,
+        name: projectName,
         ...(quoteDesignerMode === 'existing'
           ? { designerId: fromQuote.designerId }
           : { newDesigner: quoteNewDesigner }),
@@ -823,9 +825,14 @@ export function QuoteDetailPage() {
                 <input
                   className={inputClass}
                   value={fromQuote.name}
+                  required
+                  placeholder="e.g. Morrison Lake House — 123 Main St"
                   onChange={(e) => setFromQuote((p) => ({ ...p, name: e.target.value }))}
                 />
               </FormField>
+              <p className="text-xs text-charcoal/50 -mt-2">
+                Pre-filled from the quote; edit as needed. This name appears on inventory labels.
+              </p>
               <ClientAssignFields
                 mode={quoteClientMode}
                 onModeChange={setQuoteClientMode}
@@ -839,7 +846,7 @@ export function QuoteDetailPage() {
               <Button
                 onClick={() => void handleCreateProject()}
                 loading={saving}
-                disabled={!isQuoteDesignerReady || !isQuoteClientReady}
+                disabled={!fromQuote.name.trim() || !isQuoteDesignerReady || !isQuoteClientReady}
                 className="w-full min-h-[48px]"
               >
                 <FolderPlus size={14} className="mr-2" />
