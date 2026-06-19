@@ -17,7 +17,7 @@ wgs_stack_output() {
 wgs_deploy_state_file() {
   local root
   root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-  echo "${WGS_DEPLOY_STATE:-$root/deploy/.deploy-state.json}"
+  echo "${WGS_DEPLOY_STATE:-$root/.deploy-state.json}"
 }
 
 wgs_read_deploy_state() {

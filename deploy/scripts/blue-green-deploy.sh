@@ -19,7 +19,17 @@ for arg in "$@"; do
     --skip-verify) SKIP_VERIFY=true ;;
     --terminate-old) TERMINATE_OLD=true ;;
     -h|--help)
-      echo "Usage: $0 [--skip-verify] [--terminate-old]"
+      cat <<EOF
+Usage: $0 [--skip-verify] [--terminate-old]
+
+  --skip-verify    Skip Playwright smoke tests before promote
+  --terminate-old  After a successful promote, terminate (not just stop) the
+                   retired instance. Without this flag the retired instance is
+                   stopped but left recoverable.
+
+If deploy fails before promote (bootstrap, health check, verify), the candidate
+instance is left running for inspection; terminate it manually when done.
+EOF
       exit 0
       ;;
     *)
