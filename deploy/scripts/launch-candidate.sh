@@ -22,7 +22,7 @@ INSTANCE_TYPE="${WGS_INSTANCE_TYPE:-t4g.small}"
 
 ACTIVE_ID="$(wgs_find_instance_by_role active)"
 if [[ -z "$ACTIVE_ID" || "$ACTIVE_ID" == "None" ]]; then
-  ACTIVE_ID="$(wgs_stack_output InstanceId)"
+  ACTIVE_ID="$(wgs_read_deploy_state | jq -r '.activeInstanceId // empty')"
 fi
 
 if [[ -z "$ACTIVE_ID" || "$ACTIVE_ID" == "None" ]]; then
