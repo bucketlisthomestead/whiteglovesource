@@ -30,7 +30,7 @@ export function LabelPrintPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [projectName, setProjectName] = useState('');
-  const [jobNumber, setJobNumber] = useState('');
+  const [labelTitle, setLabelTitle] = useState('');
   const [labels, setLabels] = useState<LabelItem[]>([]);
   const [printedAt, setPrintedAt] = useState(formatLabelDate());
   const [isDemo, setIsDemo] = useState(false);
@@ -60,7 +60,7 @@ export function LabelPrintPage() {
           try {
             const data = await getProjectLabels(id);
             setProjectName(data.projectName);
-            setJobNumber(data.jobNumber);
+            setLabelTitle(data.labelTitle);
             setPrintedAt(formatLabelDate(data.printedAt));
             setIsDemo(false);
             setLabels(
@@ -89,7 +89,7 @@ export function LabelPrintPage() {
 
         setIsDemo(!!project.isDemo);
         setProjectName(project.name);
-        setJobNumber(formatJobNumber(project.id));
+        setLabelTitle(displayProjectName(project.id, project.name));
         setPrintedAt(formatLabelDate());
         setLabels(
           (project.pieces as Piece[])
@@ -129,7 +129,7 @@ export function LabelPrintPage() {
     setPdfLoading(true);
     try {
       await downloadLabelsPdf(labels, template, {
-        jobNumber,
+        labelTitle,
         printedAt,
         projectName,
       });
@@ -196,7 +196,7 @@ export function LabelPrintPage() {
           <div>
             <h1 className="font-serif text-2xl">Inventory Labels</h1>
             <p className="text-sm text-charcoal/50 mt-1">
-              {projectName} · {labels.length} label{labels.length === 1 ? '' : 's'} · {jobNumber}
+              {labelTitle} · {labels.length} label{labels.length === 1 ? '' : 's'}
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
@@ -257,7 +257,7 @@ export function LabelPrintPage() {
             <article key={label.pieceId} className="label-card" style={previewStyles.card}>
               <div className="label-card-inner">
                 <div className="label-meta">
-                  <p className="label-job" style={previewStyles.job}>{jobNumber}</p>
+                  <p className="label-job" style={previewStyles.job}>{labelTitle}</p>
                   <p className="label-name" style={previewStyles.name}>{label.pieceName}</p>
                   {label.roomName && (
                     <p className="label-room" style={previewStyles.room}>{label.roomName}</p>
