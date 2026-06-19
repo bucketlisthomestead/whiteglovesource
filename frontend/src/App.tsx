@@ -23,7 +23,8 @@ import { SiteMenuPage } from './pages/SiteMenuPage';
 import { ProjectPage } from './pages/ProjectPage';
 import { FieldPage } from './pages/FieldPage';
 import { ScanPiecePage } from './pages/ScanPiecePage';
-import { LabelPrintPage } from './pages/LabelPrintPage';
+import { LabelsAdminPage } from './pages/LabelsAdminPage';
+import { ProjectLabelsRedirect } from './pages/ProjectLabelsRedirect';
 import { ProjectsListPage } from './components/ProjectPortal';
 
 function App() {
@@ -42,7 +43,6 @@ function App() {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/demo" element={<DemoPage />} />
                 <Route path="/scan/:token" element={<ScanPiecePage />} />
-                <Route path="/project/:id/labels" element={<LabelPrintPage />} />
               </Route>
 
               <Route element={<AuthenticatedGate />}>
@@ -113,6 +113,26 @@ function App() {
                   element={
                     <ProtectedRoute permissions={[PERMISSIONS.DASHBOARD_VIEW]}>
                       <AdminPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/labels"
+                  element={
+                    <ProtectedRoute
+                      permissions={[PERMISSIONS.PROJECTS_MANAGE, PERMISSIONS.FIELD_USE]}
+                    >
+                      <LabelsAdminPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/project/:id/labels"
+                  element={
+                    <ProtectedRoute
+                      permissions={[PERMISSIONS.PROJECTS_MANAGE, PERMISSIONS.FIELD_USE]}
+                    >
+                      <ProjectLabelsRedirect />
                     </ProtectedRoute>
                   }
                 />

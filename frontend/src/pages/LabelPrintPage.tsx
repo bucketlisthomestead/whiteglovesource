@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import QRCode from 'qrcode';
-import { Loader2, Printer, ArrowLeft, Download } from 'lucide-react';
-import { getProject, getProjectLabels } from '../api/client';
-import { getDemoProject } from '../api/client';
+import { Download, Loader2, Printer, ArrowLeft } from 'lucide-react';
+import { getProject, getProjectLabels, getDemoProject } from '../api/client';
 import { loadDemoProject } from '../offline/demoSession';
 import { useAuth } from '../context/AuthContext';
 import { PERMISSIONS, hasAnyPermission } from '../lib/permissions';
 import { buildScanUrl, formatJobNumber, formatLabelDate } from '../lib/scan';
 import {
-  DEFAULT_LABEL_TEMPLATE,
+  DEFAULT_LABEL_TEMPLATE_ID,
   LABEL_SHEET_TEMPLATES,
+  getLabelTemplate,
   type LabelSheetTemplate,
 } from '../lib/label-sizes';
 import { downloadLabelsPdf } from '../lib/label-pdf';
@@ -23,8 +23,14 @@ interface LabelItem {
   roomName: string | null;
 }
 
-export function LabelPrintPage() {
-  const { id } = useParams<{ id: string }>();
+interface LabelPrintPageProps {
+  /** When rendered from /admin/labels?project= instead of a route param. */
+  projectId?: string;
+}
+
+export function LabelPrintPage({ projectId }: LabelPrintPageProps = {}) {
+  const { id: routeId } = useParams<{ id: string }>();
+  const id = projectId ?? routeId;
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -33,12 +39,12 @@ export function LabelPrintPage() {
   const [labels, setLabels] = useState<LabelItem[]>([]);
   const [printedAt, setPrintedAt] = useState(formatLabelDate());
   const [isDemo, setIsDemo] = useState(false);
-  const [templateId, setTemplateId] = useState(DEFAULT_LABEL_TEMPLATE.id);
+  const [templateId, setTemplateId] = useState(DEFAULT_LABEL_TEMPLATE_ID);
   const [pdfLoading, setPdfLoading] = useState(false);
   const qrCache = useRef<Map<string, string>>(new Map());
+  const [, bumpQr] = useState(0);
 
-  const template =
-    LABEL_SHEET_TEMPLATES.find((t) => t.id === templateId) ?? DEFAULT_LABEL_TEMPLATE;
+  const template = getLabelTemplate(templateId);
 
   const canPrint = hasAnyPermission(
     user?.permissions,
@@ -51,6 +57,7 @@ export function LabelPrintPage() {
     const load = async () => {
       setLoading(true);
       setError(false);
+      qrCache.current.clear();
       try {
         const isDemoRoute = id === 'demo';
         if (user && !isDemoRoute && canPrint) {
@@ -59,6 +66,7 @@ export function LabelPrintPage() {
             setProjectName(data.projectName);
             setJobNumber(data.jobNumber);
             setPrintedAt(formatLabelDate(data.printedAt));
+            setIsDemo(false);
             setLabels(
               data.labels
                 .filter((l) => l.scanToken)
@@ -99,6 +107,7 @@ export function LabelPrintPage() {
         );
       } catch {
         setError(true);
+        setLabels([]);
       } finally {
         setLoading(false);
       }
@@ -116,9 +125,9 @@ export function LabelPrintPage() {
         errorCorrectionLevel: 'M',
       });
       qrCache.current.set(label.scanToken, dataUrl);
-      setLabels((prev) => [...prev]);
+      bumpQr((n) => n + 1);
     });
-  }, [labels.length]);
+  }, [labels]);
 
   const handlePrint = () => window.print();
 
@@ -135,6 +144,12 @@ export function LabelPrintPage() {
     }
   };
 
+  if (!id) {
+    return null;
+  }
+
+  const fromAdmin = !!projectId;
+
   if (loading) {
     return (
       <div className="flex justify-center py-20">
@@ -146,24 +161,30 @@ export function LabelPrintPage() {
   if (error || !labels.length) {
     return (
       <div className="max-w-lg mx-auto px-4 py-10 text-center">
+        <Link
+          to={fromAdmin ? '/admin/labels' : isDemo ? '/demo' : `/project/${id}`}
+          className="inline-flex items-center gap-1 text-sm text-gold mb-6 min-h-[44px]"
+        >
+          <ArrowLeft size={16} /> {fromAdmin ? 'All projects' : 'Back to project'}
+        </Link>
         <p className="text-charcoal/60 mb-4">
           {error ? 'Unable to load labels.' : 'No pieces with scan codes found for this project.'}
         </p>
-        <Link to={isDemo ? '/demo' : `/project/${id}`} className="text-gold text-sm">
-          ← Back to project
-        </Link>
+        {isDemo && (
+          <p className="text-xs text-charcoal/40">Add pieces to the demo project to generate labels.</p>
+        )}
       </div>
     );
   }
 
-  const backHref = isDemo ? '/demo' : `/project/${id}`;
+  const backHref = fromAdmin ? '/admin/labels' : isDemo ? '/demo' : `/project/${id}`;
   const previewStyles = previewStylesFor(template);
 
   return (
     <div className="label-print-root">
       <div className="no-print max-w-4xl mx-auto px-4 py-6">
         <Link to={backHref} className="inline-flex items-center gap-1 text-sm text-gold mb-4 min-h-[44px]">
-          <ArrowLeft size={16} /> Back to project
+          <ArrowLeft size={16} /> {fromAdmin ? 'All projects' : 'Back to project'}
         </Link>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
@@ -217,9 +238,9 @@ export function LabelPrintPage() {
         className="label-sheet mx-auto pb-8"
         style={{
           maxWidth: `${template.pageWidth}in`,
-          paddingLeft: `${template.margins.left}in`,
-          paddingRight: `${template.margins.left}in`,
-          paddingTop: `${template.margins.top}in`,
+          paddingLeft: `${template.marginLeft}in`,
+          paddingRight: `${template.marginLeft}in`,
+          paddingTop: `${template.marginTop}in`,
         }}
       >
         {labels.map((label) => {
@@ -252,8 +273,8 @@ export function LabelPrintPage() {
         .label-sheet {
           display: grid;
           grid-template-columns: repeat(${template.columns}, ${template.labelWidth}in);
-          column-gap: ${template.hGap}in;
-          row-gap: ${template.vGap}in;
+          column-gap: ${template.horizontalGap}in;
+          row-gap: ${template.verticalGap}in;
         }
         .label-card {
           box-sizing: border-box;

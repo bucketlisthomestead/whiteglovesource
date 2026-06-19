@@ -1,4 +1,4 @@
-/** Avery and custom letter label sheet templates (dimensions in inches). */
+/** Avery and compatible label sheet templates (US Letter, inches). */
 
 export interface LabelSheetTemplate {
   id: string;
@@ -35,7 +35,7 @@ export const LABEL_SHEET_TEMPLATES: LabelSheetTemplate[] = [
   {
     id: 'avery-5161',
     name: 'Avery 5161',
-    description: '1" × 4" address labels — 20 per sheet (2×10)',
+    description: '1" × 4" shipping labels — 20 per sheet (2×10)',
     pageWidth: 8.5,
     pageHeight: 11,
     marginTop: 0.5,
@@ -44,7 +44,7 @@ export const LABEL_SHEET_TEMPLATES: LabelSheetTemplate[] = [
     labelHeight: 1,
     columns: 2,
     rows: 10,
-    horizontalGap: 0.125,
+    horizontalGap: 0.1875,
     verticalGap: 0,
   },
   {
@@ -53,13 +53,13 @@ export const LABEL_SHEET_TEMPLATES: LabelSheetTemplate[] = [
     description: '1⅓" × 4" shipping labels — 14 per sheet (2×7)',
     pageWidth: 8.5,
     pageHeight: 11,
-    marginTop: 0.83,
-    marginLeft: 0.25,
+    marginTop: 0.5,
+    marginLeft: 0.15625,
     labelWidth: 4,
     labelHeight: 1.333,
     columns: 2,
     rows: 7,
-    horizontalGap: 0.125,
+    horizontalGap: 0.1875,
     verticalGap: 0,
   },
   {
@@ -69,12 +69,12 @@ export const LABEL_SHEET_TEMPLATES: LabelSheetTemplate[] = [
     pageWidth: 8.5,
     pageHeight: 11,
     marginTop: 0.5,
-    marginLeft: 0.25,
+    marginLeft: 0.15625,
     labelWidth: 4,
     labelHeight: 2,
     columns: 2,
     rows: 5,
-    horizontalGap: 0.125,
+    horizontalGap: 0.1875,
     verticalGap: 0,
   },
   {
@@ -84,27 +84,12 @@ export const LABEL_SHEET_TEMPLATES: LabelSheetTemplate[] = [
     pageWidth: 8.5,
     pageHeight: 11,
     marginTop: 0.5,
-    marginLeft: 0.25,
+    marginLeft: 0.15625,
     labelWidth: 4,
     labelHeight: 3.333,
     columns: 2,
     rows: 3,
-    horizontalGap: 0.125,
-    verticalGap: 0,
-  },
-  {
-    id: 'letter-2x4',
-    name: 'Letter 2×4 grid',
-    description: 'Custom 2" × 4¼" grid — 8 per sheet (2×4), matches browser print preview',
-    pageWidth: 8.5,
-    pageHeight: 11,
-    marginTop: 0.25,
-    marginLeft: 0.25,
-    labelWidth: 4.25,
-    labelHeight: 2,
-    columns: 2,
-    rows: 4,
-    horizontalGap: 0,
+    horizontalGap: 0.1875,
     verticalGap: 0,
   },
 ];

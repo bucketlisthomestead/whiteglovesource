@@ -133,3 +133,17 @@ export function labelPdfFilename(projectName: string, templateId: string): strin
   const safe = projectName.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-').slice(0, 40);
   return `${safe || 'inventory'}-labels-${templateId}.pdf`;
 }
+
+export async function downloadLabelsPdf(
+  items: LabelPdfItem[],
+  template: LabelSheetTemplate,
+  meta: LabelPdfMeta,
+): Promise<void> {
+  const blob = await generateLabelsPdf(items, template, meta);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = labelPdfFilename(meta.projectName, template.id);
+  link.click();
+  URL.revokeObjectURL(url);
+}

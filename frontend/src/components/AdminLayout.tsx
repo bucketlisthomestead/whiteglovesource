@@ -13,6 +13,7 @@ import {
   Shield,
   Users,
   Settings,
+  Printer,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { NotificationBell } from './NotificationBell';
@@ -33,6 +34,7 @@ export function AdminLayout() {
   const showSiteContent = hasPermission(PERMISSIONS.SITE_CONTENT_EDIT);
   const showSiteMenu = hasPermission(PERMISSIONS.SITE_MENU_EDIT);
   const showQuotes = hasPermission(PERMISSIONS.QUOTES_VIEW);
+  const showLabels = hasAnyPermission([PERMISSIONS.PROJECTS_MANAGE, PERMISSIONS.FIELD_USE]);
 
   const role = user!.role;
   const homeTo = portalHome(role, user?.permissions);
@@ -50,6 +52,8 @@ export function AdminLayout() {
           ? 'Quotes'
           : pathname.startsWith('/admin/quotes/')
             ? 'Quote'
+            : pathname.startsWith('/admin/labels')
+              ? 'Labels'
             : pathname.startsWith('/project/')
       ? 'Project'
       : pathname.startsWith('/projects')
@@ -161,6 +165,16 @@ export function AdminLayout() {
               >
                 <FileText size={18} className="shrink-0" />
                 Quotes
+              </NavLink>
+            )}
+            {showLabels && (
+              <NavLink
+                to="/admin/labels"
+                className={navLinkClass}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <Printer size={18} className="shrink-0" />
+                Labels
               </NavLink>
             )}
             {showField && (
