@@ -21,7 +21,10 @@
     "region": "us-east-1",
     "instanceType": "t4g.small",
     "appName": "wgs",
-    "postgresEndpoint": "wgs-postgres.cttrtjhyp7dk.us-east-1.rds.amazonaws.com",
-    "pgSecretArn": "arn:aws:secretsmanager:us-east-1:536579406753:secret:wgs/pg-ZHlJGW"
+    "pgInstanceIdentifier": "wgs-postgres",
+    "pgEndpoint": "wgs-postgres.cttrtjhyp7dk.us-east-1.rds.amazonaws.com",
+    "pgSecretArn": "arn:aws:secretsmanager:us-east-1:536579406753:secret:wgs/pg-ZHlJGW",
+    "pgRdsSecurityGroupId": "sg-0e17293e5284fcbac",
+    "pgSubnetGroupName": "wgsstack-dbinstancesubnetgroup5ef3ca8a-7gox0h5xob7u"
   }
 }

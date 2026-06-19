@@ -1,0 +1,5 @@
+{
+  "WgsStack/DbInstanceSubnetGroup/Default": "wgsstack-dbinstancesubnetgroup5ef3ca8a-7gox0h5xob7u",
+  "WgsStack/PgSecret/Resource": "arn:aws:secretsmanager:us-east-1:536579406753:secret:wgs/pg-ZHlJGW",
+  "WgsStack/PgDbInstance/Resource": "wgs-postgres"
+}

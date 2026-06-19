@@ -1,0 +1,23 @@
+[
+  {
+    "ResourceType": "AWS::RDS::DBSubnetGroup",
+    "LogicalResourceId": "DbInstanceSubnetGroup",
+    "ResourceIdentifier": {
+      "DBSubnetGroupName": "wgsstack-dbinstancesubnetgroup5ef3ca8a-7gox0h5xob7u"
+    }
+  },
+  {
+    "ResourceType": "AWS::SecretsManager::Secret",
+    "LogicalResourceId": "PgSecret3283E2B3",
+    "ResourceIdentifier": {
+      "Id": "arn:aws:secretsmanager:us-east-1:536579406753:secret:wgs/pg-ZHlJGW"
+    }
+  },
+  {
+    "ResourceType": "AWS::RDS::DBInstance",
+    "LogicalResourceId": "PgDbInstance48283E5D",
+    "ResourceIdentifier": {
+      "DBInstanceIdentifier": "wgs-postgres"
+    }
+  }
+]

@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as rds from 'aws-cdk-lib/aws-rds';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import { Construct } from 'constructs';
@@ -11,18 +12,21 @@ export class WgsStack extends cdk.Stack {
     super(scope, id, props);
 
     const appName = this.node.tryGetContext('appName') ?? 'wgs';
-    const postgresEndpoint = this.node.tryGetContext('postgresEndpoint') as
-      | string
-      | undefined;
-    const pgSecretArn = this.node.tryGetContext('pgSecretArn') as
-      | string
-      | undefined;
-
-    if (!postgresEndpoint || !pgSecretArn) {
-      throw new Error(
-        'Set CDK context postgresEndpoint and pgSecretArn (see infra/cdk.json).',
-      );
-    }
+    const pgInstanceIdentifier =
+      (this.node.tryGetContext('pgInstanceIdentifier') as string | undefined) ??
+      'wgs-postgres';
+    const pgSecretArn =
+      (this.node.tryGetContext('pgSecretArn') as string | undefined) ??
+      'arn:aws:secretsmanager:us-east-1:536579406753:secret:wgs/pg-ZHlJGW';
+    const pgEndpoint =
+      (this.node.tryGetContext('pgEndpoint') as string | undefined) ??
+      'wgs-postgres.cttrtjhyp7dk.us-east-1.rds.amazonaws.com';
+    const pgRdsSecurityGroupId =
+      (this.node.tryGetContext('pgRdsSecurityGroupId') as string | undefined) ??
+      'sg-0e17293e5284fcbac';
+    const pgSubnetGroupName =
+      (this.node.tryGetContext('pgSubnetGroupName') as string | undefined) ??
+      'wgsstack-dbinstancesubnetgroup5ef3ca8a-7gox0h5xob7u';
 
     // --- Default VPC (no NAT, no extra cost) ---
     const vpc = ec2.Vpc.fromLookup(this, 'DefaultVpc', { isDefault: true });
@@ -52,7 +56,7 @@ export class WgsStack extends cdk.Stack {
       ],
     });
 
-    // Legacy MySQL secret (retained; app uses wgs/pg after PostgreSQL cutover)
+    // Legacy MySQL secret (retained after MySQL RDS decommission)
     const dbSecret = new secretsmanager.Secret(this, 'DbSecret', {
       secretName: `${appName}/db`,
       description: 'Legacy MySQL credentials (retained after PostgreSQL cutover)',
@@ -78,6 +82,36 @@ export class WgsStack extends cdk.Stack {
       },
     });
 
+    // --- PostgreSQL (production RDS adopted from pre-CDK provisioning) ---
+    const pgSecret = secretsmanager.Secret.fromSecretCompleteArn(
+      this,
+      'PgSecret',
+      pgSecretArn,
+    );
+
+    const pgRdsSg = ec2.SecurityGroup.fromSecurityGroupId(
+      this,
+      'PgRdsSg',
+      pgRdsSecurityGroupId,
+    );
+
+    rds.SubnetGroup.fromSubnetGroupName(
+      this,
+      'DbInstanceSubnetGroup',
+      pgSubnetGroupName,
+    );
+
+    const pgInstance = rds.DatabaseInstance.fromDatabaseInstanceAttributes(
+      this,
+      'PgDbInstance',
+      {
+        instanceIdentifier: pgInstanceIdentifier,
+        instanceEndpointAddress: pgEndpoint,
+        port: 5432,
+        securityGroups: [pgRdsSg],
+      },
+    );
+
     // --- Security groups ---
     const instanceSg = new ec2.SecurityGroup(this, 'InstanceSg', {
       vpc,
@@ -100,12 +134,7 @@ export class WgsStack extends cdk.Stack {
     bucket.grantReadWrite(role);
     dbSecret.grantRead(role);
     jwtSecret.grantRead(role);
-    role.addToPolicy(
-      new iam.PolicyStatement({
-        actions: ['secretsmanager:GetSecretValue'],
-        resources: [pgSecretArn],
-      }),
-    );
+    pgSecret.grantRead(role);
     role.addToPolicy(
       new iam.PolicyStatement({
         actions: [
@@ -128,7 +157,6 @@ export class WgsStack extends cdk.Stack {
     });
 
     // EC2 instances are launched via deploy/scripts/launch-candidate.sh (blue/green).
-    // The stack exports IAM, networking, and storage — not a long-lived AppInstance.
 
     // --- Outputs ---
     new cdk.CfnOutput(this, 'ElasticIp', {
@@ -156,17 +184,22 @@ export class WgsStack extends cdk.Stack {
     });
 
     new cdk.CfnOutput(this, 'PostgresEndpoint', {
-      value: postgresEndpoint,
+      value: pgInstance.dbInstanceEndpointAddress,
       description: 'RDS PostgreSQL endpoint hostname',
     });
 
     new cdk.CfnOutput(this, 'PgSecretArn', {
-      value: pgSecretArn,
+      value: pgSecret.secretArn,
       description: 'PostgreSQL credentials secret (wgs/pg)',
     });
 
+    new cdk.CfnOutput(this, 'PgInstanceIdentifier', {
+      value: pgInstanceIdentifier,
+      description: 'RDS PostgreSQL instance identifier',
+    });
+
     new cdk.CfnOutput(this, 'RdsEndpoint', {
-      value: postgresEndpoint,
+      value: pgInstance.dbInstanceEndpointAddress,
       description: 'Deprecated alias for PostgresEndpoint',
     });
 

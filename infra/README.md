@@ -206,19 +206,44 @@ chmod +x deploy/scripts/*.sh deploy/scripts/lib/*.sh
 
 Then deploy CDK with RDS, remove Docker MySQL from compose, and redeploy the app.
 
-## Migrate MySQL to PostgreSQL
+## PostgreSQL in CDK
+
+Production PostgreSQL (`wgs-postgres`) is defined in `infra/lib/wgs-stack.ts` and wired into stack outputs and IAM (`InstanceRole` can read `wgs/pg`).
+
+The live RDS instance was provisioned before full CDK adoption, so the stack **references** existing resources (not CloudFormation-owned):
+
+| Resource | CDK construct | Context key (`cdk.json`) |
+|----------|---------------|--------------------------|
+| RDS instance | `DatabaseInstance.fromDatabaseInstanceAttributes` | `pgInstanceIdentifier`, `pgEndpoint` |
+| Credentials | `Secret.fromSecretCompleteArn` | `pgSecretArn` |
+| Security group | `SecurityGroup.fromSecurityGroupId` | `pgRdsSecurityGroupId` |
+| Subnet group | `SubnetGroup.fromSubnetGroupName` | `pgSubnetGroupName` |
+
+Stack outputs: **PostgresEndpoint**, **PgSecretArn**, **PgInstanceIdentifier**, **RdsEndpoint** (deprecated alias).
+
+Deploy scripts read these via `deploy/scripts/lib/stack-outputs.sh` (`wgs_postgres_endpoint`, `wgs_pg_secret_arn`).
+
+### Full CloudFormation import (optional)
+
+To move from references to **managed** RDS/secret/subnet group in the stack (e.g. for `cdk destroy` protection or in-place CDK updates), use a one-time CloudFormation resource import. CloudFormation forbids changing outputs in the same changeset as imports, so it is a multi-step process. See `deploy/scripts/import-postgresql-to-cdk.sh` and `infra/resources-to-import.json`.
+
+## Migrate MySQL to PostgreSQL (historical)
+
+Production has completed this migration. The steps below are kept for reference or disaster recovery on a fresh environment.
 
 Optional PostgreSQL RDS runs **alongside** existing MySQL until you cut over. Uses **pgloader** on EC2 (SSM) with a pre-migration MySQL dump to S3.
 
 ### 1. Provision PostgreSQL RDS
 
+For a **new** environment, add managed RDS resources to `wgs-stack.ts` (or provision manually and set context keys above).
+
 ```bash
 cd infra
 npm run build
-npx cdk deploy -c enablePostgresRds=true
+npx cdk deploy
 ```
 
-Stack outputs: **PostgresEndpoint**, **PgSecretArn** (`wgs/pg` in Secrets Manager). Adds ~$12–15/month (same size as MySQL).
+Stack outputs: **PostgresEndpoint**, **PgSecretArn** (`wgs/pg` in Secrets Manager).
 
 ### 2. Deploy app with PostgreSQL driver
 
@@ -254,9 +279,9 @@ Test on candidate with PostgreSQL `.env`, then:
 
 `cutover-env-to-postgresql.sh` backs up `/opt/wgs/.env`, sets `DB_TYPE=postgres`, and restarts `wgs-api`.
 
-### 5. Decommission MySQL (manual)
+### 5. Decommission MySQL
 
-After a stable soak period: remove MySQL RDS via CDK (separate change), update backup cron, and drop `enablePostgresRds` context if PostgreSQL becomes the only DB in a future stack revision.
+MySQL RDS has been removed from the CDK stack. PostgreSQL backups run via `/etc/cron.d/wgs-postgresql-backup` on the active EC2 instance.
 
 **Risks:** pgloader ENUM naming may differ from TypeORM expectations; verify API smoke tests on candidate before promote. MySQL remains live until you cut over — migration does not delete source data.
 
