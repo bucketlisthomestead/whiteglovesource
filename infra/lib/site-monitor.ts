@@ -101,7 +101,7 @@ export class SiteMonitor extends Construct {
       ? `Confirm the SNS email subscription sent to ${props.alertEmail} before alerts will arrive.`
       : 'No alertEmail configured — add -c alertEmail=you@example.com and redeploy to subscribe.';
     if (props.alertPhone) {
-      subscriptionHint += ` SMS to ${props.alertPhone} requires SNS sandbox verification (create-sms-sandbox-phone-number, then verify-sms-sandbox-phone-number with the OTP).`;
+      subscriptionHint += ` SMS to ${props.alertPhone} requires a US toll-free or 10DLC origination identity plus SNS sandbox OTP verification — see infra/README.md (SMS setup).`;
     }
 
     new cdk.CfnOutput(this, 'AlertSubscriptionHint', {
