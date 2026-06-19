@@ -23,6 +23,8 @@ export class WgsStack extends cdk.Stack {
       String(rdsInstanceTypeRaw).replace(/^db\./, ''),
     );
     const rdsMultiAz = this.node.tryGetContext('rdsMultiAz') === 'true';
+    const enablePostgresRds =
+      this.node.tryGetContext('enablePostgresRds') === 'true';
 
     // --- Default VPC (no NAT, no extra cost) ---
     const vpc = ec2.Vpc.fromLookup(this, 'DefaultVpc', { isDefault: true });
@@ -40,6 +42,12 @@ export class WgsStack extends cdk.Stack {
         {
           id: 'ExpireMysqlBackups',
           prefix: 'backups/mysql/',
+          expiration: cdk.Duration.days(30),
+          enabled: true,
+        },
+        {
+          id: 'ExpirePostgresqlBackups',
+          prefix: 'backups/postgresql/',
           expiration: cdk.Duration.days(30),
           enabled: true,
         },
@@ -116,6 +124,58 @@ export class WgsStack extends cdk.Stack {
       backupRetention: cdk.Duration.days(7),
     });
 
+    // --- Optional PostgreSQL RDS (MySQL -> PostgreSQL migration target) ---
+    let pgSecret: secretsmanager.ISecret | undefined;
+    let pgInstance: rds.DatabaseInstance | undefined;
+
+    if (enablePostgresRds) {
+      pgSecret = new secretsmanager.Secret(this, 'PgSecret', {
+        secretName: `${appName}/pg`,
+        description:
+          'PostgreSQL credentials for White Glove Moving Service (RDS)',
+        generateSecretString: {
+          secretStringTemplate: JSON.stringify({
+            username: 'wgds',
+            dbname: 'white_glove_delivery',
+          }),
+          generateStringKey: 'password',
+          excludeCharacters: '"@/\\\'',
+          passwordLength: 32,
+        },
+      });
+
+      const pgRdsSg = new ec2.SecurityGroup(this, 'PgRdsSg', {
+        vpc,
+        description: 'WGS RDS PostgreSQL - EC2 security group only on 5432',
+        allowAllOutbound: false,
+      });
+      pgRdsSg.addIngressRule(
+        instanceSg,
+        ec2.Port.tcp(5432),
+        'PostgreSQL from EC2',
+      );
+
+      pgInstance = new rds.DatabaseInstance(this, 'PgDbInstance', {
+        engine: rds.DatabaseInstanceEngine.postgres({
+          version: rds.PostgresEngineVersion.VER_16,
+        }),
+        instanceType: rdsInstanceType,
+        vpc,
+        vpcSubnets: rdsSubnetSelection,
+        securityGroups: [pgRdsSg],
+        credentials: rds.Credentials.fromSecret(pgSecret),
+        databaseName: 'white_glove_delivery',
+        allocatedStorage: 20,
+        maxAllocatedStorage: 50,
+        storageEncrypted: true,
+        multiAz: rdsMultiAz,
+        publiclyAccessible: false,
+        deletionProtection: false,
+        removalPolicy: cdk.RemovalPolicy.SNAPSHOT,
+        backupRetention: cdk.Duration.days(7),
+      });
+    }
+
     // --- IAM role ---
     const role = new iam.Role(this, 'InstanceRole', {
       assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
@@ -129,6 +189,7 @@ export class WgsStack extends cdk.Stack {
     bucket.grantReadWrite(role);
     dbSecret.grantRead(role);
     jwtSecret.grantRead(role);
+    pgSecret?.grantRead(role);
     role.addToPolicy(
       new iam.PolicyStatement({
         actions: [
@@ -228,6 +289,18 @@ export class WgsStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'DbSecretArn', {
       value: dbSecret.secretArn,
     });
+
+    if (pgInstance && pgSecret) {
+      new cdk.CfnOutput(this, 'PostgresEndpoint', {
+        value: pgInstance.dbInstanceEndpointAddress,
+        description: 'RDS PostgreSQL endpoint (enablePostgresRds context)',
+      });
+
+      new cdk.CfnOutput(this, 'PgSecretArn', {
+        value: pgSecret.secretArn,
+        description: 'PostgreSQL credentials secret (wgs/pg)',
+      });
+    }
 
     new cdk.CfnOutput(this, 'JwtSecretArn', {
       value: jwtSecret.secretArn,

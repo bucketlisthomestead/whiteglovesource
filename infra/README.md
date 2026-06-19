@@ -206,6 +206,60 @@ chmod +x deploy/scripts/*.sh deploy/scripts/lib/*.sh
 
 Then deploy CDK with RDS, remove Docker MySQL from compose, and redeploy the app.
 
+## Migrate MySQL to PostgreSQL
+
+Optional PostgreSQL RDS runs **alongside** existing MySQL until you cut over. Uses **pgloader** on EC2 (SSM) with a pre-migration MySQL dump to S3.
+
+### 1. Provision PostgreSQL RDS
+
+```bash
+cd infra
+npm run build
+npx cdk deploy -c enablePostgresRds=true
+```
+
+Stack outputs: **PostgresEndpoint**, **PgSecretArn** (`wgs/pg` in Secrets Manager). Adds ~$12–15/month (same size as MySQL).
+
+### 2. Deploy app with PostgreSQL driver
+
+The backend needs the `pg` npm package (already in `package.json`). Redeploy the app before cutover.
+
+### 3. Run migration (read-only on MySQL)
+
+```bash
+chmod +x deploy/scripts/*.sh deploy/scripts/lib/*.sh
+./deploy/scripts/migrate-mysql-to-postgresql.sh --dry-run   # verify config
+./deploy/scripts/migrate-mysql-to-postgresql.sh             # runs on active EC2 via SSM
+```
+
+This will:
+
+1. `mysqldump` MySQL RDS → `s3://<bucket>/backups/mysql/pre-postgresql-migrate-*.sql.gz`
+2. Run **pgloader** MySQL → PostgreSQL (schema + data; handles ENUM/JSON/DATETIME)
+3. Upload pgloader log → `s3://<bucket>/backups/postgresql/pgloader-*.log`
+4. Verify row counts per table
+
+Use a **candidate** instance id as the optional argument to test without touching active traffic.
+
+Flags: `--skip-backup`, `--pg-endpoint`, `--pg-secret-arn` (external PostgreSQL).
+
+### 4. Cut over application
+
+Test on candidate with PostgreSQL `.env`, then:
+
+```bash
+./deploy/scripts/cutover-env-to-postgresql.sh              # active instance
+./deploy/scripts/blue-green-deploy.sh                      # when ready
+```
+
+`cutover-env-to-postgresql.sh` backs up `/opt/wgs/.env`, sets `DB_TYPE=postgres`, and restarts `wgs-api`.
+
+### 5. Decommission MySQL (manual)
+
+After a stable soak period: remove MySQL RDS via CDK (separate change), update backup cron, and drop `enablePostgresRds` context if PostgreSQL becomes the only DB in a future stack revision.
+
+**Risks:** pgloader ENUM naming may differ from TypeORM expectations; verify API smoke tests on candidate before promote. MySQL remains live until you cut over — migration does not delete source data.
+
 ## Blue/green application deploy
 
 **Recommended for production app updates (zero user-facing downtime).** The live Elastic IP stays on the active instance while the candidate is built and verified; traffic only moves at promotion after health checks pass.

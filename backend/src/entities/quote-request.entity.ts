@@ -115,7 +115,7 @@ export class QuoteRequest {
   changeOrderNumber: number | null;
 
   /** When rooms/pieces from this change order were merged into the project. */
-  @Column({ type: 'datetime', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   appliedAt: Date | null;
 
   @Column({

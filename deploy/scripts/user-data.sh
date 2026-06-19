@@ -43,8 +43,21 @@ DB_USERNAME=$(echo "$DB_JSON" | jq -r '.username')
 DB_DATABASE=$(echo "$DB_JSON" | jq -r '.dbname')
 JWT_SECRET=$(echo "$JWT_JSON" | jq -r '.secret')
 
-# RDS host from CDK env; fall back to secret host field after RDS attachment
-DB_HOST="${WGS_RDS_ENDPOINT:-$(echo "$DB_JSON" | jq -r '.host // empty')}"
+# PostgreSQL cutover: set WGS_PG_RDS_ENDPOINT + WGS_PG_DB_SECRET_ARN on instance launch.
+DB_TYPE="${WGS_DB_TYPE:-mysql}"
+if [[ -n "${WGS_PG_RDS_ENDPOINT:-}" && -n "${WGS_PG_DB_SECRET_ARN:-}" ]]; then
+  PG_JSON=$(aws secretsmanager get-secret-value --secret-id "$WGS_PG_DB_SECRET_ARN" --region "$REGION" --query SecretString --output text)
+  DB_TYPE=postgres
+  DB_HOST="${WGS_PG_RDS_ENDPOINT}"
+  DB_PORT=5432
+  DB_USERNAME=$(echo "$PG_JSON" | jq -r '.username')
+  DB_PASSWORD=$(echo "$PG_JSON" | jq -r '.password')
+  DB_DATABASE=$(echo "$PG_JSON" | jq -r '.dbname')
+else
+  # RDS host from CDK env; fall back to secret host field after RDS attachment
+  DB_HOST="${WGS_RDS_ENDPOINT:-$(echo "$DB_JSON" | jq -r '.host // empty')}"
+  DB_PORT=3306
+fi
 if [[ -z "$DB_HOST" || "$DB_HOST" == "null" ]]; then
   echo "[wgs] ERROR: WGS_RDS_ENDPOINT not set and no host in db secret"
   exit 1
@@ -58,8 +71,9 @@ NODE_ENV=production
 TYPEORM_SYNCHRONIZE=${TYPEORM_SYNCHRONIZE}
 PORT=3000
 
+DB_TYPE=${DB_TYPE}
 DB_HOST=${DB_HOST}
-DB_PORT=3306
+DB_PORT=${DB_PORT:-3306}
 DB_USERNAME=${DB_USERNAME}
 DB_PASSWORD=${DB_PASSWORD}
 DB_DATABASE=${DB_DATABASE}

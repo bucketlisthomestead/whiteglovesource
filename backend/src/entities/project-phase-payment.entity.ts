@@ -37,7 +37,7 @@ export class ProjectPhasePayment {
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   amountExpected: string | null;
 
-  @Column({ type: 'datetime', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   capturedAt: Date | null;
 
   @Column({ type: 'varchar', length: 36, nullable: true })

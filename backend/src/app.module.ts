@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import type { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ContactModule } from './contact/contact.module';
 import { QuotesModule } from './quotes/quotes.module';
 import { ProjectsModule } from './projects/projects.module';
@@ -67,14 +68,17 @@ import { ScanModule } from './scan/scan.module';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'mysql',
-        host: config.get('DB_HOST', 'localhost'),
-        port: config.get<number>('DB_PORT', 3306),
-        username: config.get('DB_USERNAME', 'wgds'),
-        password: config.get('DB_PASSWORD', 'wgdspassword'),
-        database: config.get('DB_DATABASE', 'white_glove_delivery'),
-        entities: [
+      useFactory: (config: ConfigService): TypeOrmModuleOptions => {
+        const dbType = config.get<'mysql' | 'postgres'>('DB_TYPE', 'mysql');
+        const defaultPort = dbType === 'postgres' ? 5432 : 3306;
+        return {
+          type: dbType,
+          host: config.get('DB_HOST', 'localhost'),
+          port: config.get<number>('DB_PORT', defaultPort),
+          username: config.get('DB_USERNAME', 'wgds'),
+          password: config.get('DB_PASSWORD', 'wgdspassword'),
+          database: config.get('DB_DATABASE', 'white_glove_delivery'),
+          entities: [
           Designer,
           Client,
           Project,
@@ -113,7 +117,8 @@ import { ScanModule } from './scan/scan.module';
         synchronize:
           config.get('TYPEORM_SYNCHRONIZE') === 'true' ||
           config.get('NODE_ENV') !== 'production',
-      }),
+        } as TypeOrmModuleOptions;
+      },
     }),
     AuthModule,
     EmailModule,
