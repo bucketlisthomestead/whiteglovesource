@@ -50,16 +50,28 @@ if [[ -n "$EXISTING_CANDIDATE" && "$EXISTING_CANDIDATE" != "None" ]]; then
     --output text \
     --region "$REGION")
   if [[ "$STATE" == "running" || "$STATE" == "pending" ]]; then
-    CAND_IP="$(wgs_instance_public_ip "$EXISTING_CANDIDATE")"
-    echo "Reusing existing candidate: $EXISTING_CANDIDATE ($CAND_IP)"
-    wgs_write_deploy_state "$(jq -n \
-      --arg active "$ACTIVE_ID" \
-      --arg candidate "$EXISTING_CANDIDATE" \
-      --arg eip "$(wgs_stack_output ElasticIp)" \
-      '{activeInstanceId:$active,candidateInstanceId:$candidate,elasticIp:$eip}')"
-    echo "CANDIDATE_INSTANCE_ID=$EXISTING_CANDIDATE"
-    echo "CANDIDATE_PUBLIC_IP=$CAND_IP"
-    exit 0
+    REUSE_CANDIDATE=true
+    if [[ "$(wgs_ssm_ping_status "$EXISTING_CANDIDATE")" == "Online" ]] \
+      && wgs_candidate_userdata_corrupt "$EXISTING_CANDIDATE"; then
+      echo "Candidate $EXISTING_CANDIDATE has corrupt user-data (bootstrap will never finish); terminating..."
+      aws ec2 terminate-instances --instance-ids "$EXISTING_CANDIDATE" --region "$REGION" >/dev/null
+      aws ec2 wait instance-terminated --instance-ids "$EXISTING_CANDIDATE" --region "$REGION" 2>/dev/null \
+        || sleep 30
+      REUSE_CANDIDATE=false
+    fi
+    if [[ "$REUSE_CANDIDATE" == true ]]; then
+      CAND_IP="$(wgs_instance_public_ip "$EXISTING_CANDIDATE")"
+      echo "Reusing existing candidate: $EXISTING_CANDIDATE ($CAND_IP)"
+      wgs_write_deploy_state "$(jq -n \
+        --arg active "$ACTIVE_ID" \
+        --arg candidate "$EXISTING_CANDIDATE" \
+        --arg candIp "$CAND_IP" \
+        --arg eip "$(wgs_stack_output ElasticIp)" \
+        '{activeInstanceId:$active,candidateInstanceId:$candidate,candidatePublicIp:$candIp,elasticIp:$eip}')"
+      echo "CANDIDATE_INSTANCE_ID=$EXISTING_CANDIDATE"
+      echo "CANDIDATE_PUBLIC_IP=$CAND_IP"
+      exit 0
+    fi
   fi
   if [[ "$STATE" == "stopped" ]]; then
     echo "Starting stopped candidate $EXISTING_CANDIDATE ..."
@@ -69,8 +81,9 @@ if [[ -n "$EXISTING_CANDIDATE" && "$EXISTING_CANDIDATE" != "None" ]]; then
     wgs_write_deploy_state "$(jq -n \
       --arg active "$ACTIVE_ID" \
       --arg candidate "$EXISTING_CANDIDATE" \
+      --arg candIp "$CAND_IP" \
       --arg eip "$(wgs_stack_output ElasticIp)" \
-      '{activeInstanceId:$active,candidateInstanceId:$candidate,elasticIp:$eip}')"
+      '{activeInstanceId:$active,candidateInstanceId:$candidate,candidatePublicIp:$candIp,elasticIp:$eip}')"
     echo "CANDIDATE_INSTANCE_ID=$EXISTING_CANDIDATE"
     echo "CANDIDATE_PUBLIC_IP=$CAND_IP"
     exit 0
@@ -78,7 +91,6 @@ if [[ -n "$EXISTING_CANDIDATE" && "$EXISTING_CANDIDATE" != "None" ]]; then
 fi
 
 USER_DATA="$(wgs_build_user_data "$REGION" "$BUCKET" "$DB_SECRET_ARN" "$JWT_SECRET_ARN" "$RDS_ENDPOINT")"
-USER_DATA_B64=$(printf '%s' "$USER_DATA" | base64 | tr -d '\n')
 
 echo "Launching candidate instance (type=$INSTANCE_TYPE, subnet=$SUBNET_ID) ..."
 INSTANCE_ID=$(aws ec2 run-instances \
@@ -87,7 +99,7 @@ INSTANCE_ID=$(aws ec2 run-instances \
   --subnet-id "$SUBNET_ID" \
   --security-group-ids "$SG_ID" \
   --iam-instance-profile "Name=${ROLE_NAME}" \
-  --user-data "$USER_DATA_B64" \
+  --user-data "$USER_DATA" \
   --block-device-mappings '[{"DeviceName":"/dev/xvda","Ebs":{"VolumeSize":30,"VolumeType":"gp3","Encrypted":true}}]' \
   --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${APP_NAME}-app-candidate},{Key=wgs-role,Value=candidate},{Key=wgs-app,Value=${APP_NAME}}]" \
   --query 'Instances[0].InstanceId' \
@@ -103,8 +115,9 @@ EIP="$(wgs_stack_output ElasticIp)"
 wgs_write_deploy_state "$(jq -n \
   --arg active "$ACTIVE_ID" \
   --arg candidate "$INSTANCE_ID" \
+  --arg candIp "$CAND_IP" \
   --arg eip "$EIP" \
-  '{activeInstanceId:$active,candidateInstanceId:$candidate,elasticIp:$eip}')"
+  '{activeInstanceId:$active,candidateInstanceId:$candidate,candidatePublicIp:$candIp,elasticIp:$eip}')"
 
 echo ""
 echo "Candidate launched."

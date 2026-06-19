@@ -77,3 +77,77 @@ export WGS_RDS_ENDPOINT=${rds_endpoint}
 ${script}
 EOF
 }
+
+wgs_ssm_ping_status() {
+  local instance_id="$1"
+  aws ssm describe-instance-information \
+    --filters "Key=InstanceIds,Values=${instance_id}" \
+    --query 'InstanceInformationList[0].PingStatus' \
+    --output text \
+    --region "$REGION" 2>/dev/null || echo "None"
+}
+
+# Run a shell command on an instance via SSM and wait for completion.
+# Sets WGS_SSM_STATUS, WGS_SSM_STDOUT, WGS_SSM_STDERR. Returns 0 on Success.
+wgs_ssm_run_shell() {
+  local instance_id="$1"
+  local command="$2"
+  local poll_timeout="${3:-120}"
+
+  local command_id
+  command_id=$(aws ssm send-command \
+    --instance-ids "$instance_id" \
+    --document-name AWS-RunShellScript \
+    --parameters "$(jq -n --arg cmd "$command" '{commands:[$cmd]}')" \
+    --query Command.CommandId \
+    --output text \
+    --region "$REGION")
+
+  local elapsed=0
+  while [[ "$elapsed" -lt "$poll_timeout" ]]; do
+    local status
+    status=$(aws ssm get-command-invocation \
+      --command-id "$command_id" \
+      --instance-id "$instance_id" \
+      --query Status \
+      --output text \
+      --region "$REGION" 2>/dev/null || echo Pending)
+
+    case "$status" in
+      Success|Failed|Cancelled|TimedOut)
+        WGS_SSM_STATUS="$status"
+        WGS_SSM_STDOUT=$(aws ssm get-command-invocation \
+          --command-id "$command_id" \
+          --instance-id "$instance_id" \
+          --query StandardOutputContent \
+          --output text \
+          --region "$REGION" 2>/dev/null || true)
+        WGS_SSM_STDERR=$(aws ssm get-command-invocation \
+          --command-id "$command_id" \
+          --instance-id "$instance_id" \
+          --query StandardErrorContent \
+          --output text \
+          --region "$REGION" 2>/dev/null || true)
+        [[ "$status" == "Success" ]]
+        return
+        ;;
+    esac
+    sleep 2
+    elapsed=$((elapsed + 2))
+  done
+
+  WGS_SSM_STATUS=TimedOut
+  WGS_SSM_STDOUT=""
+  WGS_SSM_STDERR=""
+  return 1
+}
+
+# True when cloud-init rejected user-data (e.g. double-base64 encoding).
+wgs_candidate_userdata_corrupt() {
+  local instance_id="$1"
+  if ! wgs_ssm_run_shell "$instance_id" \
+    'grep -q "Unhandled non-multipart" /var/log/cloud-init-output.log 2>/dev/null && echo corrupt || echo ok' 60; then
+    return 1
+  fi
+  [[ "$WGS_SSM_STDOUT" == *corrupt* ]]
+}
