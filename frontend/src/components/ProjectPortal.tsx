@@ -14,6 +14,7 @@ import { InventorySignoffPanel, PieceMilestoneSignoffs } from '../components/Sig
 import { PdfExportMenu, type PdfExportType } from '../components/PdfExportMenu';
 import { PdfExportDialog, exportTypeToDocument } from '../components/PdfExportDialog';
 import { ProjectDocumentsPanel } from '../components/ProjectDocumentsPanel';
+import { ProjectLabelPdfsPanel } from '../components/ProjectLabelPdfsPanel';
 import { ContractAgreementSection } from '../components/ContractAgreementSection';
 import { PhasePaymentsSection } from '../components/PhasePaymentsSection';
 import { ProjectAuditPanel } from '../components/ProjectAuditPanel';
@@ -374,6 +375,10 @@ export function ProjectPortal({ projectId, isDemo }: ProjectPortalProps) {
 
           {user && !isDemo && (
             <ProjectDocumentsPanel projectId={project.id} refreshKey={documentsRefreshKey} />
+          )}
+
+          {canPrintLabels && !isDemo && (
+            <ProjectLabelPdfsPanel projectId={project.id} />
           )}
 
           {pendingExport && (
