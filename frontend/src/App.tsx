@@ -57,17 +57,6 @@ function App() {
                 <Route path="/scan/:token" element={<ScanPiecePage />} />
               </Route>
 
-              <Route
-                path="/admin/labels/print/:projectId"
-                element={
-                  <ProtectedRoute
-                    permissions={[PERMISSIONS.PROJECTS_MANAGE, PERMISSIONS.FIELD_USE]}
-                  >
-                    <LabelPrintPage />
-                  </ProtectedRoute>
-                }
-              />
-
               <Route element={<AuthenticatedGate />}>
                 <Route path="/projects" element={<ProjectsListPage />} />
                 <Route path="/project/:id" element={<ProjectPage />} />
