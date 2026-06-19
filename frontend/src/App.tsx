@@ -24,6 +24,7 @@ import { ProjectPage } from './pages/ProjectPage';
 import { FieldPage } from './pages/FieldPage';
 import { ScanPiecePage } from './pages/ScanPiecePage';
 import { LabelsAdminPage } from './pages/LabelsAdminPage';
+import { LabelPrintPage } from './pages/LabelPrintPage';
 import { ProjectLabelsRedirect } from './pages/ProjectLabelsRedirect';
 import { ProjectsListPage } from './components/ProjectPortal';
 
@@ -35,6 +36,17 @@ function App() {
         <OfflineProvider>
           <Layout>
             <Routes>
+              <Route
+                path="/admin/labels/print/:projectId"
+                element={
+                  <ProtectedRoute
+                    permissions={[PERMISSIONS.PROJECTS_MANAGE, PERMISSIONS.FIELD_USE]}
+                  >
+                    <LabelPrintPage />
+                  </ProtectedRoute>
+                }
+              />
+
               <Route element={<PublicShell />}>
                 <Route path="/" element={<HomePage />} />
                 <Route path="/services" element={<ServicesPage />} />
@@ -44,6 +56,17 @@ function App() {
                 <Route path="/demo" element={<DemoPage />} />
                 <Route path="/scan/:token" element={<ScanPiecePage />} />
               </Route>
+
+              <Route
+                path="/admin/labels/print/:projectId"
+                element={
+                  <ProtectedRoute
+                    permissions={[PERMISSIONS.PROJECTS_MANAGE, PERMISSIONS.FIELD_USE]}
+                  >
+                    <LabelPrintPage />
+                  </ProtectedRoute>
+                }
+              />
 
               <Route element={<AuthenticatedGate />}>
                 <Route path="/projects" element={<ProjectsListPage />} />

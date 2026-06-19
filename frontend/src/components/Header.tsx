@@ -20,7 +20,7 @@ export function Header() {
   }, [menu.headerNav, user]);
 
   return (
-    <header className="sticky top-0 z-50 bg-cream/95 backdrop-blur-md border-b border-cream-dark">
+    <header className="app-chrome sticky top-0 z-50 bg-cream/95 backdrop-blur-md border-b border-cream-dark">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14 md:h-20">
           <Link to="/" className="flex flex-col leading-tight" onClick={() => setOpen(false)}>

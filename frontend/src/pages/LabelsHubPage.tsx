@@ -59,7 +59,7 @@ export function LabelsHubPage() {
         {visible.map((p) => (
           <Link
             key={p.id}
-            to={`/admin/labels?project=${encodeURIComponent(p.id)}`}
+            to={`/admin/labels/print/${encodeURIComponent(p.id)}`}
             className="flex items-center justify-between gap-4 px-4 py-4 hover:bg-cream/50 transition-colors min-h-[64px]"
           >
             <div className="min-w-0">

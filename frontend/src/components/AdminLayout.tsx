@@ -228,7 +228,7 @@ export function AdminLayout() {
 
   return (
     <div className="min-h-screen flex bg-zinc-950 text-zinc-100">
-      <aside className="hidden lg:flex w-64 shrink-0 border-r border-zinc-800 bg-zinc-900 flex-col fixed inset-y-0 left-0 z-40">
+      <aside className="app-chrome hidden lg:flex w-64 shrink-0 border-r border-zinc-800 bg-zinc-900 flex-col fixed inset-y-0 left-0 z-40">
         {sidebar}
       </aside>
 
@@ -240,7 +240,7 @@ export function AdminLayout() {
             aria-label="Close menu"
             onClick={() => setSidebarOpen(false)}
           />
-          <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw] bg-zinc-900 border-r border-zinc-800 flex flex-col shadow-2xl">
+          <aside className="app-chrome absolute inset-y-0 left-0 w-72 max-w-[85vw] bg-zinc-900 border-r border-zinc-800 flex flex-col shadow-2xl">
             <button
               type="button"
               onClick={() => setSidebarOpen(false)}
@@ -255,7 +255,7 @@ export function AdminLayout() {
       )}
 
       <div className="flex-1 flex flex-col min-w-0 lg:pl-64">
-        <header className="sticky top-0 z-30 flex items-center justify-between gap-4 px-4 h-14 border-b border-zinc-800 bg-zinc-900/95 backdrop-blur-md">
+        <header className="app-chrome sticky top-0 z-30 flex items-center justify-between gap-4 px-4 h-14 border-b border-zinc-800 bg-zinc-900/95 backdrop-blur-md">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
@@ -288,7 +288,7 @@ export function AdminLayout() {
           <Outlet />
         </main>
 
-        <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-zinc-900 border-t border-zinc-800 safe-area-pb">
+        <nav className="app-chrome lg:hidden fixed bottom-0 inset-x-0 z-30 bg-zinc-900 border-t border-zinc-800 safe-area-pb">
           <div className="flex items-stretch justify-around">
             {showDashboard && (
               <NavLink

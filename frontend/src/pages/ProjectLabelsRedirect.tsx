@@ -4,5 +4,5 @@ import { Navigate, useParams } from 'react-router-dom';
 export function ProjectLabelsRedirect() {
   const { id } = useParams<{ id: string }>();
   if (!id) return <Navigate to="/admin/labels" replace />;
-  return <Navigate to={`/admin/labels?project=${encodeURIComponent(id)}`} replace />;
+  return <Navigate to={`/admin/labels/print/${encodeURIComponent(id)}`} replace />;
 }

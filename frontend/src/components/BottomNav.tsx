@@ -19,7 +19,7 @@ export function BottomNav() {
   );
 
   return (
-    <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-cream border-t border-cream-dark safe-area-pb">
+    <nav className="app-chrome md:hidden fixed bottom-0 inset-x-0 z-50 bg-cream border-t border-cream-dark safe-area-pb">
       <div className="flex items-stretch justify-around">
         {links.map(({ to, label, icon }) => {
           const Icon = resolveSiteMenuIcon(icon);

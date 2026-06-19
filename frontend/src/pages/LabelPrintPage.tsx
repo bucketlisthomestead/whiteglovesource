@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import QRCode from 'qrcode';
-import { Download, Loader2, Printer, ArrowLeft } from 'lucide-react';
+import { Download, Loader2, ArrowLeft } from 'lucide-react';
 import { getProject, getProjectLabels, getDemoProject } from '../api/client';
 import { loadDemoProject } from '../offline/demoSession';
 import { useAuth } from '../context/AuthContext';
@@ -23,14 +23,9 @@ interface LabelItem {
   roomName: string | null;
 }
 
-interface LabelPrintPageProps {
-  /** When rendered from /admin/labels?project= instead of a route param. */
-  projectId?: string;
-}
-
-export function LabelPrintPage({ projectId }: LabelPrintPageProps) {
-  const { id: routeId } = useParams<{ id: string }>();
-  const id = projectId ?? routeId;
+export function LabelPrintPage() {
+  const { projectId } = useParams<{ projectId: string }>();
+  const id = projectId;
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -129,8 +124,6 @@ export function LabelPrintPage({ projectId }: LabelPrintPageProps) {
     });
   }, [labels]);
 
-  const handlePrint = () => window.print();
-
   const handleDownloadPdf = async () => {
     setPdfLoading(true);
     try {
@@ -148,7 +141,7 @@ export function LabelPrintPage({ projectId }: LabelPrintPageProps) {
     return null;
   }
 
-  const fromAdmin = !!projectId;
+  const backHref = '/admin/labels';
 
   if (loading) {
     return (
@@ -162,10 +155,10 @@ export function LabelPrintPage({ projectId }: LabelPrintPageProps) {
     return (
       <div className="max-w-lg mx-auto px-4 py-10 text-center">
         <Link
-          to={fromAdmin ? '/admin/labels' : isDemo ? '/demo' : `/project/${id}`}
+          to={backHref}
           className="inline-flex items-center gap-1 text-sm text-gold mb-6 min-h-[44px]"
         >
-          <ArrowLeft size={16} /> {fromAdmin ? 'All projects' : 'Back to project'}
+          <ArrowLeft size={16} /> All projects
         </Link>
         <p className="text-charcoal/60 mb-4">
           {error ? 'Unable to load labels.' : 'No pieces with scan codes found for this project.'}
@@ -177,14 +170,13 @@ export function LabelPrintPage({ projectId }: LabelPrintPageProps) {
     );
   }
 
-  const backHref = fromAdmin ? '/admin/labels' : isDemo ? '/demo' : `/project/${id}`;
   const previewStyles = previewStylesFor(template);
 
   return (
-    <div className="label-print-root">
-      <div className="no-print max-w-4xl mx-auto px-4 py-6">
+    <div className="label-print-root min-h-screen bg-cream">
+      <div className="max-w-4xl mx-auto px-4 py-6">
         <Link to={backHref} className="inline-flex items-center gap-1 text-sm text-gold mb-4 min-h-[44px]">
-          <ArrowLeft size={16} /> {fromAdmin ? 'All projects' : 'Back to project'}
+          <ArrowLeft size={16} /> All projects
         </Link>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
@@ -208,28 +200,19 @@ export function LabelPrintPage({ projectId }: LabelPrintPageProps) {
                 ))}
               </select>
             </label>
-            <div className="flex gap-2 sm:items-end">
-              <button
-                type="button"
-                onClick={handleDownloadPdf}
-                disabled={pdfLoading}
-                className="inline-flex items-center justify-center gap-2 border border-charcoal/30 text-charcoal px-4 py-3 min-h-[48px] text-sm uppercase tracking-wider disabled:opacity-50"
-              >
-                {pdfLoading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
-                Download PDF
-              </button>
-              <button
-                type="button"
-                onClick={handlePrint}
-                className="inline-flex items-center justify-center gap-2 bg-charcoal text-cream px-5 py-3 min-h-[48px] text-sm uppercase tracking-wider"
-              >
-                <Printer size={18} /> Print
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={pdfLoading}
+              className="inline-flex items-center justify-center gap-2 bg-charcoal text-cream px-5 py-3 min-h-[48px] text-sm uppercase tracking-wider disabled:opacity-50 sm:self-end"
+            >
+              {pdfLoading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+              Download PDF
+            </button>
           </div>
         </div>
         <p className="text-xs text-charcoal/40 mb-4">
-          {template.description}. Choose your Avery sheet, download a print-ready PDF, or use Print for browser output.
+          {template.description}. Choose your Avery sheet and download a print-ready PDF with labels only.
           Scan any QR code to open the piece check-in page.
         </p>
       </div>
@@ -321,12 +304,6 @@ export function LabelPrintPage({ projectId }: LabelPrintPageProps) {
         }
         .label-qr-placeholder {
           background: #f0ebe3;
-        }
-        @media print {
-          .no-print { display: none !important; }
-          .label-print-root { background: white; }
-          .label-card { border-color: #ccc; }
-          @page { size: letter; margin: 0; }
         }
       `}</style>
     </div>

@@ -18,7 +18,7 @@ export function OfflineBanner() {
 
   return (
     <div
-      className={`sticky top-16 md:top-20 z-40 px-4 py-2.5 text-sm flex items-center justify-between gap-3 ${
+      className={`app-chrome sticky top-16 md:top-20 z-40 px-4 py-2.5 text-sm flex items-center justify-between gap-3 ${
         isOnline ? 'bg-amber-50 text-amber-900 border-b border-amber-200' : 'bg-charcoal text-cream border-b border-charcoal-light'
       }`}
     >

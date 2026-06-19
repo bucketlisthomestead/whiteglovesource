@@ -9,7 +9,7 @@ export function Footer() {
   const { menu } = useSiteMenu();
 
   return (
-    <footer className="bg-charcoal text-cream/80">
+    <footer className="app-chrome bg-charcoal text-cream/80">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
           <div className="lg:col-span-2">

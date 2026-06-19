@@ -91,3 +91,37 @@ h1, h2, h3, h4 {
 .rich-text b {
   font-weight: 600;
 }
+
+/* Label print: hide all site / admin chrome if browser print is used */
+@media print {
+  .app-chrome,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+    padding: 0 !important;
+  }
+
+  .label-print-root {
+    background: white;
+  }
+
+  .label-sheet {
+    margin: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    padding-top: 0 !important;
+    max-width: none !important;
+  }
+
+  .label-card {
+    border-color: #ccc;
+  }
+
+  @page {
+    margin: 0;
+    size: letter;
+  }
+}
