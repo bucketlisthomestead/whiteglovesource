@@ -605,6 +605,25 @@ export interface SaveProjectDocumentForm {
   note?: string;
 }
 
+export interface ProjectLabelPdfVersion {
+  id: string;
+  projectId: string;
+  version: number;
+  templateId: string;
+  templateName: string;
+  pieceCount: number;
+  jobNumber: string;
+  printedAt: string;
+  filename: string;
+  createdByName: string | null;
+  createdAt: string;
+  downloadUrl: string;
+}
+
+export interface GenerateLabelPdfForm {
+  templateId?: string;
+}
+
 export type ProjectActivityCategory =
   | 'origin'
   | 'approval'

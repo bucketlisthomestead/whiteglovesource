@@ -17,6 +17,7 @@ import { ProjectDocumentsPanel } from '../components/ProjectDocumentsPanel';
 import { ContractAgreementSection } from '../components/ContractAgreementSection';
 import { PhasePaymentsSection } from '../components/PhasePaymentsSection';
 import { ProjectAuditPanel } from '../components/ProjectAuditPanel';
+import { ProjectLabelsSection } from '../components/ProjectLabelsSection';
 import { SearchField, matchesSearch } from '../components/SearchField';
 import {
   ProjectPhaseTimeline,
@@ -24,7 +25,7 @@ import {
   PickupLocationsSection,
   ScheduleSection,
 } from '../components/ProjectWorkflow';
-import { PERMISSIONS } from '../lib/permissions';
+import { PERMISSIONS, hasAnyPermission } from '../lib/permissions';
 import { useAuth } from '../context/AuthContext';
 import {
   PROJECT_STATUS_LABELS,
@@ -67,10 +68,18 @@ export function ProjectPortal({ projectId, isDemo }: ProjectPortalProps) {
     isDemo ||
     !!(user && (isDesigner || hasPermission(PERMISSIONS.PROJECTS_MANAGE)));
   const canAdvance = hasPermission(PERMISSIONS.PROJECTS_ADVANCE);
+  const canPrintLabels = hasAnyPermission(
+    user?.permissions,
+    [PERMISSIONS.PROJECTS_MANAGE, PERMISSIONS.FIELD_USE],
+    user?.role,
+  );
+  const showLabelsSection = !!(canPrintLabels && (user || isDemo));
+  const labelsExpanded = searchParams.get('labels') === '1';
 
   useEffect(() => {
     const tab = searchParams.get('tab');
     if (tab === 'audit' && user && !isDemo) setActiveTab('audit');
+    if (searchParams.get('labels') === '1') setActiveTab('inventory');
   }, [searchParams, user, isDemo]);
 
   useEffect(() => {
@@ -464,6 +473,14 @@ export function ProjectPortal({ projectId, isDemo }: ProjectPortalProps) {
 
         {activeTab === 'inventory' && (
         <>
+        {showLabelsSection && (
+          <ProjectLabelsSection
+            project={project}
+            isDemo={isDemo}
+            defaultExpanded={labelsExpanded}
+          />
+        )}
+
         <InventorySignoffPanel project={project} onSignoff={handleSignoff} isDemo={isDemo} />
 
         <div className="grid grid-cols-3 gap-2 mb-6">

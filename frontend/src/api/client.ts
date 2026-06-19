@@ -80,6 +80,35 @@ export interface ProjectLabelData {
 export const getProjectLabels = (projectId: string) =>
   api.get<ProjectLabelData>(`/projects/${projectId}/labels`).then((r) => r.data);
 
+export const getProjectLabelPdfs = (projectId: string) =>
+  api.get<import('../types').ProjectLabelPdfVersion[]>(`/projects/${projectId}/labels/pdf`).then((r) => r.data);
+
+export const generateProjectLabelPdf = (
+  projectId: string,
+  data: import('../types').GenerateLabelPdfForm = {},
+) =>
+  api.post<import('../types').ProjectLabelPdfVersion>(`/projects/${projectId}/labels/pdf`, data).then((r) => r.data);
+
+export async function downloadProjectLabelPdf(
+  projectId: string,
+  versionId: string,
+  filename: string,
+) {
+  const token = getToken();
+  const response = await fetch(
+    `${import.meta.env.VITE_API_URL || '/api'}/projects/${projectId}/labels/pdf/${versionId}/download`,
+    { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+  );
+  if (!response.ok) throw new Error('Unable to download label PDF');
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export const getPieceByScanToken = (token: string) =>
   api.get<Piece & { events: PieceEvent[]; jobNumber: string }>(`/scan/${token}`).then((r) => r.data);
 

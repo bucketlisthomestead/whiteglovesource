@@ -35,6 +35,19 @@ function truncateText(doc: jsPDF, text: string, maxWidth: number): string {
   return `${trimmed}…`;
 }
 
+function drawLabelBorder(
+  doc: jsPDF,
+  template: LabelSheetTemplate,
+  x: number,
+  y: number,
+) {
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.01);
+  doc.setLineDashPattern([0.04, 0.04], 0);
+  doc.rect(x, y, template.labelWidth, template.labelHeight, 'S');
+  doc.setLineDashPattern([], 0);
+}
+
 function drawLabel(
   doc: jsPDF,
   template: LabelSheetTemplate,
@@ -44,6 +57,8 @@ function drawLabel(
   item: LabelPdfItem,
   qrDataUrl: string,
 ) {
+  drawLabelBorder(doc, template, x, y);
+
   const qrSize = qrSizeInches(template);
   const textRight = x + template.labelWidth - PADDING - qrSize - 0.06;
   const textWidth = Math.max(0.5, textRight - (x + PADDING));
@@ -81,6 +96,12 @@ function drawLabel(
   const qrX = x + template.labelWidth - PADDING - qrSize;
   const qrY = y + (template.labelHeight - qrSize) / 2;
   doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+
+  doc.setDrawColor(212, 207, 196);
+  doc.setLineWidth(0.01);
+  doc.setLineDashPattern([2, 2], 0);
+  doc.rect(x, y, template.labelWidth, template.labelHeight, 'S');
+  doc.setLineDashPattern([], 0);
 }
 
 async function qrDataUrlForToken(scanToken: string, px: number): Promise<string> {

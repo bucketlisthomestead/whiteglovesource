@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { Download, Loader2, ArrowLeft } from 'lucide-react';
-import { getProject, getProjectLabels, getDemoProject } from '../api/client';
+import { getProject, getProjectLabels, getDemoProject, generateProjectLabelPdf, downloadProjectLabelPdf } from '../api/client';
 import { loadDemoProject } from '../offline/demoSession';
 import { useAuth } from '../context/AuthContext';
 import { PERMISSIONS, hasAnyPermission } from '../lib/permissions';
@@ -36,6 +36,7 @@ export function LabelPrintPage() {
   const [isDemo, setIsDemo] = useState(false);
   const [templateId, setTemplateId] = useState(DEFAULT_LABEL_TEMPLATE_ID);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [saveLoading, setSaveLoading] = useState(false);
   const qrCache = useRef<Map<string, string>>(new Map());
   const [, bumpQr] = useState(0);
 
@@ -137,6 +138,19 @@ export function LabelPrintPage() {
     }
   };
 
+  const handleGenerateAndSave = async () => {
+    if (!id || isDemo) return;
+    setSaveLoading(true);
+    try {
+      const saved = await generateProjectLabelPdf(id, { templateId });
+      await downloadProjectLabelPdf(id, saved.id, saved.filename);
+    } catch {
+      alert('Unable to generate and save label PDF on the server.');
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
   if (!id) {
     return null;
   }
@@ -203,12 +217,23 @@ export function LabelPrintPage() {
             <button
               type="button"
               onClick={handleDownloadPdf}
-              disabled={pdfLoading}
-              className="inline-flex items-center justify-center gap-2 bg-charcoal text-cream px-5 py-3 min-h-[48px] text-sm uppercase tracking-wider disabled:opacity-50 sm:self-end"
+              disabled={pdfLoading || saveLoading}
+              className="inline-flex items-center justify-center gap-2 border border-charcoal/20 text-charcoal px-5 py-3 min-h-[48px] text-sm uppercase tracking-wider disabled:opacity-50 sm:self-end"
             >
               {pdfLoading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
               Download PDF
             </button>
+            {!isDemo && canPrint && (
+              <button
+                type="button"
+                onClick={handleGenerateAndSave}
+                disabled={saveLoading || pdfLoading}
+                className="inline-flex items-center justify-center gap-2 bg-charcoal text-cream px-5 py-3 min-h-[48px] text-sm uppercase tracking-wider disabled:opacity-50 sm:self-end"
+              >
+                {saveLoading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+                Generate &amp; Save
+              </button>
+            )}
           </div>
         </div>
         <p className="text-xs text-charcoal/40 mb-4">

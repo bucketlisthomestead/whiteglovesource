@@ -35,6 +35,7 @@ import { Signoff } from './entities/signoff.entity';
 import { PieceCatalogItem } from './entities/piece-catalog-item.entity';
 import { StorageLocation } from './entities/storage-location.entity';
 import { ProjectDocument } from './entities/project-document.entity';
+import { ProjectLabelPdf } from './entities/project-label-pdf.entity';
 import { ProjectMessage } from './entities/project-message.entity';
 import { Notification } from './entities/notification.entity';
 import { AppSettings } from './entities/app-settings.entity';
@@ -92,6 +93,7 @@ import { ScanModule } from './scan/scan.module';
           PieceCatalogItem,
           StorageLocation,
           ProjectDocument,
+          ProjectLabelPdf,
           ProjectMessage,
           Notification,
           AppSettings,

@@ -5,12 +5,17 @@ import {
   Param,
   Post,
   Req,
+  Res,
   UseGuards,
+  StreamableFile,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ProjectsService } from './projects.service';
 import { ProjectAuditService } from './project-audit.service';
+import { ProjectLabelPdfService } from './project-label-pdf.service';
 import { CreatePieceEventDto } from '../common/dto';
 import { CreateProjectMessageDto } from '../common/project-message.dto';
+import { GenerateLabelPdfDto } from '../common/label-pdf.dto';
 import { Public } from '../common/decorators';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -26,6 +31,7 @@ export class ProjectsController {
   constructor(
     private readonly projectsService: ProjectsService,
     private readonly auditService: ProjectAuditService,
+    private readonly labelPdfService: ProjectLabelPdfService,
   ) {}
 
   @UseGuards(JwtAuthGuard)
@@ -57,6 +63,57 @@ export class ProjectsController {
   @Get(':id/labels')
   getLabels(@Param('id') id: string, @Req() req: { user: User }) {
     return this.projectsService.getProjectLabels(id, req.user);
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequireAnyPermissions(PERMISSIONS.PROJECTS_MANAGE, PERMISSIONS.FIELD_USE)
+  @Get(':id/labels/pdf')
+  listLabelPdfs(@Param('id') id: string, @Req() req: { user: User }) {
+    return this.labelPdfService.listVersions(id, req.user);
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequireAnyPermissions(PERMISSIONS.PROJECTS_MANAGE, PERMISSIONS.FIELD_USE)
+  @Post(':id/labels/pdf')
+  generateLabelPdf(
+    @Param('id') id: string,
+    @Body() dto: GenerateLabelPdfDto,
+    @Req() req: { user: User },
+  ) {
+    return this.labelPdfService.generate(id, dto.templateId, req.user);
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequireAnyPermissions(PERMISSIONS.PROJECTS_MANAGE, PERMISSIONS.FIELD_USE)
+  @Post(':id/labels/pdf/regenerate')
+  regenerateLabelPdf(
+    @Param('id') id: string,
+    @Body() dto: GenerateLabelPdfDto,
+    @Req() req: { user: User },
+  ) {
+    return this.labelPdfService.generate(id, dto.templateId, req.user);
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequireAnyPermissions(PERMISSIONS.PROJECTS_MANAGE, PERMISSIONS.FIELD_USE)
+  @Get(':id/labels/pdf/:versionId/download')
+  async downloadLabelPdf(
+    @Param('id') id: string,
+    @Param('versionId') versionId: string,
+    @Req() req: { user: User },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const version = await this.labelPdfService.getVersion(
+      id,
+      versionId,
+      req.user,
+    );
+    const buffer = await this.labelPdfService.readFile(version);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${version.filename}"`,
+    });
+    return new StreamableFile(buffer);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
