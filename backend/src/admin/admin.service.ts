@@ -201,9 +201,10 @@ export class AdminService {
       client = created;
     }
 
-    const projectName =
-      dto.name?.trim() ||
-      `${quote.contactName}${quote.propertyAddress ? ` — ${quote.propertyAddress.split(',')[0]}` : ''}`;
+    const projectName = dto.name.trim();
+    if (!projectName) {
+      throw new BadRequestException('Project name is required');
+    }
 
     const pricing = await this.settingsService.resolveQuotePricing(quote);
 

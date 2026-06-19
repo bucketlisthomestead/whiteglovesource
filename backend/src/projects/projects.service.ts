@@ -14,7 +14,11 @@ import { Room } from '../entities/room.entity';
 import { PickupLocation } from '../entities/pickup-location.entity';
 import { ScheduledJob } from '../entities/scheduled-job.entity';
 import { CreatePieceEventDto } from '../common/dto';
-import { formatJobNumber, generateScanToken } from '../common/scan-token';
+import {
+  displayProjectName,
+  formatJobNumber,
+  generateScanToken,
+} from '../common/scan-token';
 import { PieceStage, ProjectPhase, STAGE_PHASE } from '../common/enums';
 import { PhotoMilestone, STAGE_TO_PHOTO_MILESTONE } from '../common/signoff';
 import { SignoffsService } from '../signoffs/signoffs.service';

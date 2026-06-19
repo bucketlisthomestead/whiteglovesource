@@ -125,9 +125,9 @@ export class CreateProjectFromQuoteDto {
   @Type(() => CreateDesignerInputDto)
   newDesigner?: CreateDesignerInputDto;
 
-  @IsOptional()
   @IsString()
-  name?: string;
+  @MinLength(1)
+  name: string;
 
   @IsOptional()
   @IsUUID()
