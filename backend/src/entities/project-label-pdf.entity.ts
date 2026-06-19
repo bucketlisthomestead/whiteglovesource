@@ -17,7 +17,7 @@ export class ProjectLabelPdf {
   @JoinColumn({ name: 'projectId' })
   project: Project;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   projectId: string;
 
   @Column({ type: 'int' })
@@ -41,7 +41,7 @@ export class ProjectLabelPdf {
   @Column({ type: 'varchar', length: 255 })
   filename: string;
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   createdByUserId: string | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })

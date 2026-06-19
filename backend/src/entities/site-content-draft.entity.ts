@@ -27,7 +27,7 @@ export class SiteContentDraft {
   })
   status: SiteContentDraftStatus;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   createdByUserId: string;
 
   @Column({ type: 'varchar', length: 255 })
@@ -36,7 +36,7 @@ export class SiteContentDraft {
   @Column({ type: 'timestamp', nullable: true })
   publishedAt: Date | null;
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   publishedByUserId: string | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })

@@ -21,7 +21,7 @@ export class SiteContentDraftEntry {
   @JoinColumn({ name: 'draftId' })
   draft: SiteContentDraft;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   draftId: string;
 
   @Column({ type: 'varchar', length: 64 })

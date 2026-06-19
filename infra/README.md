@@ -328,7 +328,7 @@ Lightweight gate (no Mailpit); used by `verify-candidate.sh`:
 BASE_URL=http://<candidate-ip> npm run test:deploy-smoke
 ```
 
-Env overrides: `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD`.
+Env overrides: `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD` (required — must match `DEV_ADMIN_PASSWORD` from backend seed).
 
 ## Environment variables
 

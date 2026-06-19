@@ -18,14 +18,14 @@ export class ContractAmendment {
   @JoinColumn({ name: 'projectId' })
   project: Project;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   projectId: string;
 
   @ManyToOne(() => QuoteRequest, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'quoteId' })
   quote: QuoteRequest;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   quoteId: string;
 
   @Column({ type: 'int' })
@@ -40,7 +40,7 @@ export class ContractAmendment {
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   quotedAmount: number | null;
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   generatedByUserId: string | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })

@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
@@ -40,6 +41,7 @@ export class SeedService implements OnModuleInit {
   private readonly logger = new Logger(SeedService.name);
 
   constructor(
+    private readonly config: ConfigService,
     @InjectRepository(Designer)
     private readonly designerRepo: Repository<Designer>,
     @InjectRepository(Client)
@@ -139,12 +141,25 @@ export class SeedService implements OnModuleInit {
     }
   }
 
+  private devAdminPasswordHash: string | null = null;
+
+  private async devAdminPasswordHashOrThrow(): Promise<string> {
+    if (!this.devAdminPasswordHash) {
+      const password = this.config.get<string>('DEV_ADMIN_PASSWORD');
+      if (!password) {
+        throw new Error(
+          'DEV_ADMIN_PASSWORD is required to create seed demo users. Set it in backend/.env (see backend/.env.example).',
+        );
+      }
+      this.devAdminPasswordHash = await bcrypt.hash(password, 10);
+    }
+    return this.devAdminPasswordHash;
+  }
+
   private async seedUsersIfNeeded(designerId: string, clientId: string) {
-    const hash = await bcrypt.hash('password123', 10);
     const seedUsers = [
       {
         email: 'admin@whiteglovedeliverync.com',
-        passwordHash: hash,
         name: 'WGS Owner',
         role: UserRole.ADMIN,
         designerId: null,
@@ -152,7 +167,6 @@ export class SeedService implements OnModuleInit {
       },
       {
         email: 'sarah@whitfieldinteriors.com',
-        passwordHash: hash,
         name: 'Sarah Whitfield',
         role: UserRole.DESIGNER,
         designerId,
@@ -160,7 +174,6 @@ export class SeedService implements OnModuleInit {
       },
       {
         email: 'morrison@example.com',
-        passwordHash: hash,
         name: 'James & Catherine Morrison',
         role: UserRole.CLIENT,
         designerId: null,
@@ -175,7 +188,10 @@ export class SeedService implements OnModuleInit {
         where: { email: seed.email },
       });
       if (!existing) {
-        await this.userRepo.save(this.userRepo.create(seed));
+        const passwordHash = await this.devAdminPasswordHashOrThrow();
+        await this.userRepo.save(
+          this.userRepo.create({ ...seed, passwordHash }),
+        );
         created++;
         continue;
       }
@@ -216,7 +232,7 @@ export class SeedService implements OnModuleInit {
     }
 
     if (created > 0) {
-      this.logger.log(`Seed users created (${created}, password: password123)`);
+      this.logger.log(`Seed users created (${created})`);
     }
     if (repaired > 0) {
       this.logger.log(`Seed users repaired (${repaired})`);

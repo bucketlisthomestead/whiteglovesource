@@ -20,6 +20,14 @@ function emptyRoom(name = 'Living Room'): QuoteRoom {
   return { name, items: [] };
 }
 
+function effectiveRooms(rooms: QuoteRoom[]): QuoteRoom[] {
+  return rooms.length > 0 ? rooms : [emptyRoom()];
+}
+
+function withItems(room: QuoteRoom): QuoteRoom {
+  return { ...room, items: room.items ?? [] };
+}
+
 export function QuoteRoomsEditor({
   rooms,
   onChange,
@@ -51,24 +59,25 @@ export function QuoteRoomsEditor({
   const catalogName = (id: string) => catalogItem(id)?.name ?? 'Unknown item';
 
   const updateRoomName = (index: number, name: string) => {
-    onChange(rooms.map((r, i) => (i === index ? { ...r, name } : r)));
+    onChange(effectiveRooms(rooms).map((r, i) => (i === index ? { ...r, name } : r)));
   };
 
   const addRoom = () => {
-    const used = new Set(rooms.map((r) => r.name));
+    const current = effectiveRooms(rooms);
+    const used = new Set(current.map((r) => r.name));
     const suggestion = DEFAULT_ROOM_NAMES.find((n) => !used.has(n)) ?? 'Additional Room';
-    onChange([...rooms, emptyRoom(suggestion)]);
+    onChange([...current, emptyRoom(suggestion)]);
   };
 
   const removeRoom = (index: number) => {
-    onChange(rooms.filter((_, i) => i !== index));
+    onChange(effectiveRooms(rooms).filter((_, i) => i !== index));
   };
 
   const updateItemQty = (roomIndex: number, catalogItemId: string, quantity: number) => {
     onChange(
-      rooms.map((room, i) => {
-        if (i !== roomIndex) return room;
-        const items = room.items.filter((it) => it.catalogItemId !== catalogItemId);
+      effectiveRooms(rooms).map((room, i) => {
+        if (i !== roomIndex) return withItems(room);
+        const items = withItems(room).items.filter((it) => it.catalogItemId !== catalogItemId);
         if (quantity > 0) items.push({ catalogItemId, quantity });
         return { ...room, items };
       }),
@@ -77,7 +86,7 @@ export function QuoteRoomsEditor({
 
   const addItemToRoom = (roomIndex: number, catalogItemId: string) => {
     if (!catalogItemId) return;
-    const room = rooms[roomIndex];
+    const room = withItems(effectiveRooms(rooms)[roomIndex]);
     const existing = room.items.find((i) => i.catalogItemId === catalogItemId);
     if (existing) {
       updateItemQty(roomIndex, catalogItemId, existing.quantity + 1);
@@ -94,7 +103,7 @@ export function QuoteRoomsEditor({
     );
   }
 
-  const displayRooms = rooms.length ? rooms : [emptyRoom()];
+  const displayRooms = effectiveRooms(rooms);
 
   return (
     <div className="space-y-4">
@@ -111,7 +120,9 @@ export function QuoteRoomsEditor({
         )}
       </div>
 
-      {displayRooms.map((room, roomIndex) => (
+      {displayRooms.map((room, roomIndex) => {
+        const items = withItems(room).items;
+        return (
         <div key={roomIndex} className="bg-cream/40 border border-cream-dark p-4 space-y-3">
           <div className="flex items-center gap-3">
             <input
@@ -133,9 +144,9 @@ export function QuoteRoomsEditor({
             )}
           </div>
 
-          {room.items.length > 0 && (
+          {items.length > 0 && (
             <div className="space-y-2 border-t border-cream-dark pt-3">
-              {room.items.map((item) => {
+              {items.map((item) => {
                 const cat = catalogItem(item.catalogItemId);
                 const breakdown = cat
                   ? catalogPieceBreakdown(cat, storageMonths, storageType)
@@ -211,7 +222,8 @@ export function QuoteRoomsEditor({
             </FormField>
           )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

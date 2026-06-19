@@ -28,14 +28,14 @@ export class User {
   @Column({ type: 'varchar', length: 64, default: UserRole.CLIENT })
   role: string;
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   designerId: string | null;
 
   @ManyToOne(() => Designer, { nullable: true })
   @JoinColumn({ name: 'designerId' })
   designer: Designer | null;
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   clientId: string | null;
 
   @ManyToOne(() => Client, { nullable: true })

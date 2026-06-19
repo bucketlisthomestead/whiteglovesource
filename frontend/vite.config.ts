@@ -55,6 +55,15 @@ export default defineConfig({
   ],
   server: {
     port: 5173,
+    host: true,
+    allowedHosts: ['local.whiteglovesource.com', 'localhost'],
+    hmr: process.env.VITE_HMR_CLIENT_PORT
+      ? {
+          host: process.env.VITE_HMR_HOST || 'local.whiteglovesource.com',
+          clientPort: Number(process.env.VITE_HMR_CLIENT_PORT),
+          protocol: 'ws',
+        }
+      : true,
     proxy: {
       '/api': {
         target: 'http://localhost:3001',

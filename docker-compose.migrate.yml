@@ -6,16 +6,20 @@ services:
     container_name: wgds-mysql-migrate
     command: --default-authentication-plugin=mysql_native_password
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
       MYSQL_DATABASE: white_glove_delivery
       MYSQL_USER: wgds
-      MYSQL_PASSWORD: wgdspassword
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
     ports:
       - '3307:3306'
     volumes:
       - mysql_migrate_data:/var/lib/mysql
     healthcheck:
-      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-uroot', '-prootpassword']
+      test:
+        [
+          'CMD-SHELL',
+          'mysqladmin ping -h localhost -uroot -p"$$MYSQL_ROOT_PASSWORD"',
+        ]
       interval: 5s
       timeout: 5s
       retries: 15

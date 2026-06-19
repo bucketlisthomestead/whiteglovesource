@@ -6,6 +6,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { createS3Client } from './s3-client.factory';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 
@@ -26,9 +27,7 @@ export class ContentFileStorageService {
 
     if (explicit === 's3' || (!explicit && this.s3Bucket)) {
       this.backend = 's3';
-      this.s3Client = new S3Client({
-        region: this.config.get('AWS_REGION', 'us-east-1'),
-      });
+      this.s3Client = createS3Client(this.config);
     } else {
       this.backend = 'local';
       this.s3Client = null;

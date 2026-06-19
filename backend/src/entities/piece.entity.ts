@@ -68,7 +68,7 @@ export class Piece {
   @JoinColumn({ name: 'pickupLocationId' })
   pickupLocation: PickupLocation | null;
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   pickupLocationId: string | null;
 
   @ManyToOne(() => Project, (project) => project.pieces, {
@@ -77,18 +77,18 @@ export class Piece {
   @JoinColumn({ name: 'projectId' })
   project: Project;
 
-  @Column()
+  @Column({ type: 'uuid' })
   projectId: string;
 
   @ManyToOne(() => Room, (room) => room.pieces, { nullable: true, eager: true })
   @JoinColumn({ name: 'roomId' })
   room: Room | null;
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   roomId: string | null;
 
   /** Catalogue item this piece was created from (for scope reduction pricing). */
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   catalogItemId: string | null;
 
   /** Unique token encoded in label QR codes for scan/check-in. */

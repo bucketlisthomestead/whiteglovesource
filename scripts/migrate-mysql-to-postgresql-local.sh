@@ -14,6 +14,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# shellcheck source=scripts/lib/load-dev-env.sh
+source "$ROOT/scripts/lib/load-dev-env.sh"
+load_dev_env "$ROOT"
+require_env DB_PASSWORD "Copy .env.example to .env and set DB_PASSWORD."
+
 run_with_timeout() {
   local secs="$1"
   shift
@@ -54,13 +59,13 @@ done
 MYSQL_HOST="${MYSQL_HOST:-127.0.0.1}"
 MYSQL_PORT="${MYSQL_PORT:-3306}"
 MYSQL_USER="${MYSQL_USER:-wgds}"
-MYSQL_PASSWORD="${MYSQL_PASSWORD:-wgdspassword}"
+MYSQL_PASSWORD="${MYSQL_PASSWORD:-$DB_PASSWORD}"
 MYSQL_DATABASE="${MYSQL_DATABASE:-white_glove_delivery}"
 
 PG_HOST="${PG_HOST:-127.0.0.1}"
 PG_PORT="${PG_PORT:-5432}"
 PG_USER="${PG_USER:-wgds}"
-PG_PASSWORD="${PG_PASSWORD:-wgdspassword}"
+PG_PASSWORD="${PG_PASSWORD:-$DB_PASSWORD}"
 PG_DATABASE="${PG_DATABASE:-white_glove_delivery}"
 
 echo "==> Starting PostgreSQL (docker compose) ..."
@@ -150,7 +155,7 @@ docker compose -f docker-compose.yml -f docker-compose.migrate.yml up -d mysql-m
 
 for i in $(seq 1 60); do
   if docker compose -f docker-compose.yml -f docker-compose.migrate.yml exec -T mysql-migrate \
-    mysqladmin ping -h localhost -uroot -prootpassword --silent 2>/dev/null \
+    mysqladmin ping -h localhost -uroot -p"${MYSQL_ROOT_PASSWORD}" --silent 2>/dev/null \
     && docker compose exec -T postgres pg_isready -U "$PG_USER" -d "$PG_DATABASE" >/dev/null 2>&1; then
     break
   fi
@@ -161,7 +166,7 @@ done
 echo "==> Restoring dump into MySQL 8 staging container ..."
 gunzip -c "$DUMP_FILE" \
   | docker compose -f docker-compose.yml -f docker-compose.migrate.yml exec -T mysql-migrate \
-    mysql -uroot -prootpassword "$MYSQL_DATABASE"
+    mysql -uroot -p"${MYSQL_ROOT_PASSWORD}" "$MYSQL_DATABASE"
 
 # pgloader on the compose network (service DNS names).
 PGLOADER_MYSQL_HOST="mysql-migrate"

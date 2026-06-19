@@ -19,14 +19,14 @@ export class SiteContentFeedback {
   @JoinColumn({ name: 'draftId' })
   draft: SiteContentDraft;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   draftId: string;
 
   /** Null means overall draft feedback */
   @Column({ type: 'varchar', length: 64, nullable: true })
   contentKey: string | null;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   authorUserId: string;
 
   @Column({ type: 'varchar', length: 255 })

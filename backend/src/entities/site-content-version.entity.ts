@@ -16,7 +16,7 @@ export class SiteContentVersion {
   @Column({ type: 'text' })
   content: string;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   changedByUserId: string;
 
   @Column({ type: 'varchar', length: 255 })
@@ -28,13 +28,13 @@ export class SiteContentVersion {
   @Column({ type: 'boolean', default: false })
   isRestore: boolean;
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   restoredFromVersionId: string | null;
 
   @Column({ type: 'boolean', default: false })
   isPublish: boolean;
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   draftId: string | null;
 
   @CreateDateColumn()

@@ -78,12 +78,15 @@ export function LoginPage() {
           </Button>
         </form>
 
+        {import.meta.env.DEV && (
         <div className="mt-8 p-4 bg-cream-dark/50 text-xs text-charcoal/50 space-y-1">
-          <p className="font-medium text-charcoal/70">Demo accounts (password: password123)</p>
+          <p className="font-medium text-charcoal/70">Demo accounts (local dev)</p>
+          <p>Password: set DEV_ADMIN_PASSWORD in backend/.env — see README</p>
           <p>Admin: admin@whiteglovedeliverync.com</p>
           <p>Designer: sarah@whitfieldinteriors.com</p>
           <p>Client: morrison@example.com</p>
         </div>
+        )}
 
         <p className="mt-6 text-center text-sm text-charcoal/50">
           <Link to="/demo" className="text-gold hover:underline">View public demo</Link> without signing in

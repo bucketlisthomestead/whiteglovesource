@@ -18,10 +18,10 @@ export class ProjectMessage {
   @JoinColumn({ name: 'projectId' })
   project: Project;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   projectId: string;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   authorUserId: string;
 
   @Column({ type: 'varchar', length: 255 })

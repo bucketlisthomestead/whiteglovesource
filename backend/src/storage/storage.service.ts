@@ -1,10 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  GetObjectCommand,
-  PutObjectCommand,
-  S3Client,
-} from '@aws-sdk/client-s3';
+import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { createS3Client } from './s3-client.factory';
 import { randomUUID } from 'crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { extname, join } from 'path';
@@ -43,14 +40,7 @@ export class StorageService {
       storageBackend === 's3' || (!storageBackend && !!this.s3Bucket);
 
     if (useS3 && this.s3Bucket) {
-      const accessKeyId = this.config.get<string>('AWS_ACCESS_KEY_ID');
-      const secretAccessKey = this.config.get<string>('AWS_SECRET_ACCESS_KEY');
-      this.s3Client = new S3Client({
-        region: this.config.get('AWS_REGION', 'us-east-1'),
-        ...(accessKeyId && secretAccessKey
-          ? { credentials: { accessKeyId, secretAccessKey } }
-          : {}),
-      });
+      this.s3Client = createS3Client(this.config);
     } else {
       this.s3Client = null;
     }

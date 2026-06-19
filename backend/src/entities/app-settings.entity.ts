@@ -4,7 +4,7 @@ export const APP_SETTINGS_ID = 'default';
 
 @Entity('app_settings')
 export class AppSettings {
-  @PrimaryColumn({ type: 'varchar', length: 36 })
+  @PrimaryColumn({ type: 'uuid' })
   id: string;
 
   @Column({ type: 'varchar', length: 255 })

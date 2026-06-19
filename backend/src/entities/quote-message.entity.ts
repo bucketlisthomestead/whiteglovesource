@@ -18,10 +18,10 @@ export class QuoteMessage {
   @JoinColumn({ name: 'quoteId' })
   quote: QuoteRequest;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   quoteId: string;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   authorUserId: string;
 
   @Column({ type: 'varchar', length: 255 })

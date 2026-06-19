@@ -24,7 +24,7 @@ export class ProjectDocument {
   @JoinColumn({ name: 'projectId' })
   project: Project;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   projectId: string;
 
   @Column({ type: 'enum', enum: ProjectDocumentType })
@@ -46,7 +46,7 @@ export class ProjectDocument {
   @Column({ type: 'text', nullable: true })
   note: string | null;
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   generatedByUserId: string | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })

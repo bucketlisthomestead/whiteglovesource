@@ -31,13 +31,13 @@ export class RecordChange {
   @Column({ type: 'enum', enum: RecordType })
   recordType: RecordType;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   recordId: string;
 
   @Column({ type: 'enum', enum: RecordChangeAction })
   action: RecordChangeAction;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   actorUserId: string;
 
   @Column({ type: 'varchar', length: 255 })

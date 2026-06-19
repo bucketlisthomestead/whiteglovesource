@@ -4,10 +4,10 @@ services:
     container_name: wgds-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env — copy from .env.example}
       MYSQL_DATABASE: white_glove_delivery
       MYSQL_USER: wgds
-      MYSQL_PASSWORD: wgdspassword
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env — copy from .env.example}
     ports:
       - '3306:3306'
     volumes:
@@ -32,7 +32,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: wgds
-      POSTGRES_PASSWORD: wgdspassword
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env — copy from .env.example}
       POSTGRES_DB: white_glove_delivery
     ports:
       - '5432:5432'

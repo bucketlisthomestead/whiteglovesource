@@ -61,6 +61,7 @@ import { SiteContentDraftEntry } from './entities/site-content-draft-entry.entit
 import { SiteContentFeedback } from './entities/site-content-feedback.entity';
 import { SiteMenuVersion } from './entities/site-menu-version.entity';
 import { ScanModule } from './scan/scan.module';
+import { PostgresLowercaseNamingStrategy } from './common/postgres-lowercase-naming.strategy';
 
 @Module({
   imports: [
@@ -76,7 +77,7 @@ import { ScanModule } from './scan/scan.module';
           host: config.get('DB_HOST', 'localhost'),
           port: config.get<number>('DB_PORT', defaultPort),
           username: config.get('DB_USERNAME', 'wgds'),
-          password: config.get('DB_PASSWORD', 'wgdspassword'),
+          password: config.getOrThrow('DB_PASSWORD'),
           database: config.get('DB_DATABASE', 'white_glove_delivery'),
           entities: [
           Designer,
@@ -117,6 +118,9 @@ import { ScanModule } from './scan/scan.module';
         synchronize:
           config.get('TYPEORM_SYNCHRONIZE') === 'true' ||
           config.get('NODE_ENV') !== 'production',
+        ...(dbType === 'postgres'
+          ? { schema: 'public', namingStrategy: new PostgresLowercaseNamingStrategy() }
+          : {}),
         } as TypeOrmModuleOptions;
       },
     }),

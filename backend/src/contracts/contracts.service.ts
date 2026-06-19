@@ -130,7 +130,10 @@ export class ContractsService {
     const stored = await this.storage.savePdf(projectId, buffer, filename);
 
     if (!contract) {
-      contract = this.contractRepo.create({ projectId });
+      contract = this.contractRepo.create({
+        projectId,
+        project: { id: projectId } as Project,
+      });
     }
 
     contract.proposalStorageKey = stored.storageKey;

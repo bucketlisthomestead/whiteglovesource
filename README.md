@@ -35,6 +35,11 @@ Premium furniture receiving, storage, delivery, and installation platform for in
 ## Quick Start
 
 ```bash
+# 0. Local secrets (gitignored)
+cp .env.example .env
+cp backend/.env.example backend/.env
+# Edit both files: set DB_PASSWORD (same value) and DEV_ADMIN_PASSWORD for demo logins
+
 # 1. Start MySQL
 npm run db:setup
 # Uses Homebrew MySQL on Mac, or Docker if available
@@ -48,7 +53,9 @@ cd frontend && npm install && npm run dev
 
 Open **http://localhost:5173**
 
-### Demo Logins (password: `password123`)
+### Demo Logins (local dev)
+
+Set `DEV_ADMIN_PASSWORD` in `backend/.env` before first backend start (seed creates users on boot).
 
 | Role | Email |
 |------|-------|
@@ -84,6 +91,8 @@ Manual sync: tap **Sync Now** in the offline banner.
 ## Environment Variables
 
 See `backend/.env.example` for SMTP, JWT secret, and database config.
+
+**LocalStack (production-like S3 locally):** see [deploy/LOCALSTACK.md](deploy/LOCALSTACK.md) — run `./deploy/scripts/deploy-localstack.sh` (app at `http://local.whiteglovesource.com`).
 
 ## Secret scan (before git init / first push)
 

@@ -59,14 +59,14 @@ export class ScheduledJob {
   @JoinColumn({ name: 'projectId' })
   project: Project;
 
-  @Column()
+  @Column({ type: 'uuid' })
   projectId: string;
 
   @ManyToOne(() => PickupLocation, { nullable: true })
   @JoinColumn({ name: 'pickupLocationId' })
   pickupLocation: PickupLocation | null;
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   pickupLocationId: string | null;
 
   @OneToMany(() => JobAssignment, (a) => a.job)

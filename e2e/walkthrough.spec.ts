@@ -3,7 +3,13 @@ import path from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
 
 const ADMIN_EMAIL = process.env.WALKTHROUGH_ADMIN_EMAIL ?? 'admin@whiteglovedeliverync.com';
-const ADMIN_PASSWORD = process.env.WALKTHROUGH_ADMIN_PASSWORD ?? 'password123';
+const ADMIN_PASSWORD =
+  process.env.WALKTHROUGH_ADMIN_PASSWORD ?? process.env.E2E_ADMIN_PASSWORD;
+if (!ADMIN_PASSWORD) {
+  throw new Error(
+    'WALKTHROUGH_ADMIN_PASSWORD or E2E_ADMIN_PASSWORD is required (must match DEV_ADMIN_PASSWORD from backend/.env).',
+  );
+}
 const CHAPTER_PAUSE_MS = Number(process.env.WALKTHROUGH_CHAPTER_PAUSE_MS ?? 2500);
 const MAILPIT_WEB_URL = process.env.MAILPIT_WEB_URL ?? 'http://localhost:8025';
 const MAILPIT_API_URL = process.env.MAILPIT_API_URL ?? 'http://localhost:8025';

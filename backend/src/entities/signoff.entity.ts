@@ -27,7 +27,7 @@ export class Signoff {
   @JoinColumn({ name: 'pieceId' })
   piece: Piece | null;
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   pieceId: string | null;
 
   @Column({ type: 'enum', enum: SignoffType })
@@ -39,7 +39,7 @@ export class Signoff {
   @Column()
   signerName: string;
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   signerUserId: string;
 
   @Column({ type: 'enum', enum: PhotoMilestone, nullable: true })

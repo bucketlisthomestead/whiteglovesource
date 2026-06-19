@@ -110,8 +110,9 @@ export function ProjectChangeOrdersSection({
         <div>
           <h2 className="font-serif text-lg text-charcoal">Scope additions</h2>
           <p className="text-sm text-charcoal/55 mt-1">
-            Create a change-order quote for additional rooms and furniture. After client approval,
-            generate a revised contract and apply items to this project.
+            Create a change-order quote for additional rooms and furniture. After approval on the
+            quote page, use <strong className="font-medium text-charcoal/70">Add to project inventory</strong>{' '}
+            to merge items into this project.
           </p>
         </div>
         <Button
@@ -144,6 +145,8 @@ export function ProjectChangeOrdersSection({
                 (order.removalPieceCount ?? 0) > 0
               : order.status === 'accepted' && !order.appliedAt && order.roomCount > 0;
             const canAmend = order.status === 'accepted';
+            const awaitingApproval =
+              !order.appliedAt && order.status !== 'accepted' && order.status !== 'declined';
 
             return (
               <div
@@ -188,6 +191,11 @@ export function ProjectChangeOrdersSection({
                 </div>
 
                 <div className="flex flex-wrap gap-2">
+                  {awaitingApproval && (
+                    <p className="text-xs text-charcoal/55 w-full">
+                      Open the quote to send for approval or mark accepted, then add to inventory.
+                    </p>
+                  )}
                   {canAmend && (
                     <button
                       type="button"

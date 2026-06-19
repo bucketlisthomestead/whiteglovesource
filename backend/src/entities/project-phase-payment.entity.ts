@@ -21,7 +21,7 @@ export class ProjectPhasePayment {
   @JoinColumn({ name: 'projectId' })
   project: Project;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   projectId: string;
 
   @Column({ type: 'enum', enum: ProjectPhase })
@@ -40,7 +40,7 @@ export class ProjectPhasePayment {
   @Column({ type: 'timestamp', nullable: true })
   capturedAt: Date | null;
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   capturedByUserId: string | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })

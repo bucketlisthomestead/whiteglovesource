@@ -21,22 +21,39 @@ WORKDIR="/tmp/wgs-pg-migrate-${STAMP}"
 mkdir -p "$WORKDIR"
 
 urlencode() {
-  python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$1"
+  jq -n --arg v "$1" '$v|@uri' -r
 }
 
 MYSQL_PASS_ENC=$(urlencode "$MYSQL_PASSWORD")
 PG_PASS_ENC=$(urlencode "$PG_PASSWORD")
+
+RDS_CA="${WORKDIR}/rds-global-bundle.pem"
+curl -fsSL "https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem" -o "$RDS_CA" || true
+export PGSSLMODE="${PGSSLMODE:-disable}"
+export PGSSLROOTCERT="${PGSSLROOTCERT:-$RDS_CA}"
 
 echo "[wgs-pg-migrate] Installing clients (mariadb105, postgresql15) ..."
 dnf install -y mariadb105 postgresql15 2>/dev/null || true
 
 echo "[wgs-pg-migrate] Ensuring pgloader is available ..."
 PGLOADER_BIN=""
-if command -v pgloader >/dev/null 2>&1; then
+ARCH=$(uname -m)
+if [[ "$ARCH" == "x86_64" ]] && ! command -v pgloader >/dev/null 2>&1; then
+  BUILD_SCRIPT="/tmp/build-pgloader-x86.sh"
+  aws s3 cp "s3://${S3_BUCKET}/deploy/scripts/build-pgloader-x86.sh" "$BUILD_SCRIPT" --region "$REGION"
+  chmod +x "$BUILD_SCRIPT"
+  "$BUILD_SCRIPT"
+fi
+if command -v pgloader >/dev/null 2>&1 && [[ "$ARCH" == "x86_64" ]]; then
   PGLOADER_BIN="pgloader"
 elif docker info >/dev/null 2>&1; then
+  echo "[wgs-pg-migrate] Setting up amd64 emulation for pgloader on ${ARCH} ..."
+  dnf install -y qemu-user-static 2>/dev/null || true
+  docker run --rm --privileged tonistiigi/binfmt:latest --install all 2>/dev/null \
+    || docker run --rm --privileged multiarch/qemu-user-static --reset -p yes 2>/dev/null \
+    || true
   docker pull --platform linux/amd64 dimitri/pgloader:latest
-  PGLOADER_BIN="docker run --rm --platform linux/amd64 --network host -v ${WORKDIR}:${WORKDIR} dimitri/pgloader:latest pgloader"
+  PGLOADER_BIN="docker run --rm --network host -v ${WORKDIR}:${WORKDIR} dimitri/pgloader:latest pgloader"
 else
   echo "ERROR: pgloader not found and Docker unavailable."
   exit 1
@@ -64,7 +81,7 @@ LOAD_FILE="${WORKDIR}/pgloader.load"
 cat > "$LOAD_FILE" <<EOF
 LOAD DATABASE
      FROM mysql://${MYSQL_USER}:${MYSQL_PASS_ENC}@${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DATABASE}
-     INTO postgresql://${PG_USER}:${PG_PASS_ENC}@${PG_HOST}:${PG_PORT}/${PG_DATABASE}
+     INTO postgresql://${PG_USER}:${PG_PASS_ENC}@${PG_HOST}:${PG_PORT}/${PG_DATABASE}?sslmode=disable
 
  WITH include drop, create tables, create indexes, reset sequences,
       workers = 4, concurrency = 1,
@@ -96,19 +113,42 @@ PG_LOG_KEY="backups/postgresql/pgloader-${PG_DATABASE}-${STAMP}.log"
 aws s3 cp "$LOG_FILE" "s3://${S3_BUCKET}/${PG_LOG_KEY}" --region "$REGION"
 echo "[wgs-pg-migrate] pgloader log uploaded to s3://${S3_BUCKET}/${PG_LOG_KEY}"
 
-if [[ "$PGLOADER_STATUS" -ne 0 ]]; then
-  echo "ERROR: pgloader exited with status $PGLOADER_STATUS"
-  exit "$PGLOADER_STATUS"
+if [[ "$PGLOADER_STATUS" -ne 0 ]] || grep -qE 'ERROR mysql:|^KABOOM!' "$LOG_FILE"; then
+  echo "ERROR: pgloader failed (status=$PGLOADER_STATUS)"
+  tail -50 "$LOG_FILE" || true
+  exit 1
 fi
 
 echo "[wgs-pg-migrate] Moving tables to public schema ..."
 PGPASSWORD="$PG_PASSWORD" psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DATABASE" <<SQL
 ALTER SCHEMA public RENAME TO public_old;
 ALTER SCHEMA ${MYSQL_DATABASE} RENAME TO public;
-DROP SCHEMA public_old CASCADE;
+DROP SCHEMA IF EXISTS public_old CASCADE;
 GRANT ALL ON SCHEMA public TO ${PG_USER};
 GRANT ALL ON ALL TABLES IN SCHEMA public TO ${PG_USER};
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO ${PG_USER};
+ALTER DATABASE ${PG_DATABASE} SET search_path TO public;
+ALTER ROLE ${PG_USER} SET search_path TO public;
+SQL
+
+echo "[wgs-pg-migrate] Converting MySQL tinyint (smallint) booleans to PostgreSQL boolean ..."
+PGPASSWORD="$PG_PASSWORD" psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DATABASE" <<'SQL'
+DO $$
+DECLARE
+  r RECORD;
+  def boolean;
+BEGIN
+  FOR r IN
+    SELECT table_name, column_name, column_default
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND data_type = 'smallint'
+  LOOP
+    def := COALESCE(r.column_default LIKE '%1%', false);
+    EXECUTE format('ALTER TABLE %I ALTER COLUMN %I DROP DEFAULT', r.table_name, r.column_name);
+    EXECUTE format('ALTER TABLE %I ALTER COLUMN %I TYPE boolean USING (%I != 0)', r.table_name, r.column_name, r.column_name);
+    EXECUTE format('ALTER TABLE %I ALTER COLUMN %I SET DEFAULT %s', r.table_name, r.column_name, def);
+  END LOOP;
+END $$;
 SQL
 
 echo "[wgs-pg-migrate] Verifying row counts ..."

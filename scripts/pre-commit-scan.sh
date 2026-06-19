@@ -11,10 +11,11 @@ pass(){ echo "  PASS: $*"; }; fail(){ echo "  FAIL: $*"; FAIL=$((FAIL+1)); }
 warn(){ echo "  WARN: $*"; WARN=$((WARN+1)); }
 is_git(){ git rev-parse --git-dir >/dev/null 2>&1; }
 should_skip(){ [[ "$1" == *node_modules* || "$1" == *dist/* || "$1" == *cdk.out* || "$1" == .git/* ]]; }
-is_env(){ local b; b=$(basename "$1"); [[ "$b" == .env || "$b" == .env.local ]] || [[ "$b" == .env.* && "$b" != .env.example && "$b" != .env.production.example ]]; }
+is_env(){ local b; b=$(basename "$1"); [[ "$b" == .env || "$b" == .env.local || "$b" == .env.localstack ]] || [[ "$b" == .env.* && "$b" != .env.example && "$b" != .env.production.example && "$b" != .env.localstack.example ]]; }
 ignored(){
   local p="$1" b; b=$(basename "$p")
-  grep -qF '**/.env' .gitignore && { [[ "$b" == .env || "$b" == .env.local ]] && return 0; [[ "$b" == .env.* && "$b" != .env.example && "$b" != .env.production.example ]] && return 0; }
+  grep -qF '**/.env' .gitignore && { [[ "$b" == .env || "$b" == .env.local ]] && return 0; [[ "$b" == .env.* && "$b" != .env.example && "$b" != .env.production.example && "$b" != .env.localstack.example ]] && return 0; }
+  grep -qF '.env.localstack' .gitignore && [[ "$b" == .env.localstack ]] && return 0
   grep -qF 'infra/cdk.context.json' .gitignore && [[ "$p" == infra/cdk.context.json ]] && return 0
   grep -qF 'deploy/.deploy-state.json' .gitignore && [[ "$p" == deploy/.deploy-state.json ]] && return 0
   grep -qF 'infra/cdk.out/' .gitignore && [[ "$p" == infra/cdk.out/* || "$p" == infra/cdk.out ]] && return 0
@@ -86,7 +87,7 @@ if [[ ${#scan[@]} -gt 0 ]]; then
 else pass "no scannable text files"; fi
 
 echo; echo "Checking dev defaults (informational)..."
-dev=$(for f in backend/src/seed/* e2e/*.ts backend/src/app.module.ts scripts/setup-db.sh; do [[ -f "$f" ]] && echo "$f"; done | sort -u)
+dev=$(for f in backend/src/seed/* e2e/helpers/*.ts e2e/*.ts backend/src/app.module.ts scripts/setup-db.sh docker-compose.yml docker-compose.migrate.yml; do [[ -f "$f" ]] && echo "$f"; done | sort -u)
 if [[ -n "$dev" ]]; then
   m=$(echo "$dev" | xargs grep -lE 'password123|wgdspassword' 2>/dev/null) || true
   [[ -n "$m" ]] && while IFS= read -r x; do [[ -n "$x" ]] && warn "dev default password in: $x"; done <<< "$m" \

@@ -1,0 +1,27 @@
+# LocalStack + existing local dependencies (MySQL, Postgres, Mailpit).
+# Usage: docker compose -f docker-compose.yml -f docker-compose.localstack.yml up -d
+include:
+  - path: docker-compose.yml
+
+services:
+  localstack:
+    image: localstack/localstack:4.4.0
+    container_name: wgds-localstack
+    restart: unless-stopped
+    ports:
+      - '4566:4566'
+    environment:
+      SERVICES: s3,secretsmanager
+      AWS_DEFAULT_REGION: us-east-1
+      DEBUG: '0'
+    volumes:
+      - localstack_data:/var/lib/localstack
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:4566/_localstack/health']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  localstack_data:

@@ -5,7 +5,9 @@ backend/storage/
 dist/
 **/.env
 **/.env.local
+**/.env.localstack
 !**/.env.example
+!**/.env.localstack.example
 !**/.env.production.example
 deploy/.deploy-state.json
 deploy/.pg-migrate-state.json
@@ -19,3 +21,5 @@ walkthrough-results/
 walkthrough-report/
 walkthrough-output/
 e2e/node_modules/
+e2e/test-results/
+e2e/playwright-report/data/

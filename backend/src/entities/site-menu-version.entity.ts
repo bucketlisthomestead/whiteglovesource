@@ -13,7 +13,7 @@ export class SiteMenuVersion {
   @Column({ type: 'text' })
   content: string;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   changedByUserId: string;
 
   @Column({ type: 'varchar', length: 255 })
@@ -25,7 +25,7 @@ export class SiteMenuVersion {
   @Column({ type: 'boolean', default: false })
   isRestore: boolean;
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   restoredFromVersionId: string | null;
 
   @CreateDateColumn()

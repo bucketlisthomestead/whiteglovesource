@@ -24,7 +24,7 @@ export class Notification {
   @JoinColumn({ name: 'userId' })
   user: User;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   userId: string;
 
   @Column({ type: 'enum', enum: NotificationType })
@@ -39,10 +39,10 @@ export class Notification {
   @Column({ type: 'varchar', length: 512, nullable: true })
   link: string | null;
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   quoteId: string | null;
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   projectId: string | null;
 
   @Column({ type: 'boolean', default: false })

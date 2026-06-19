@@ -79,7 +79,7 @@ export class QuoteRequest {
   @Column({ type: 'int', default: 1 })
   pickupLocationCount: number;
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   storageLocationId: string | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
@@ -104,11 +104,11 @@ export class QuoteRequest {
   @Column({ type: 'json', nullable: true })
   lineItems: QuoteLineItem[];
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   projectId: string | null;
 
   /** Scope-addition quote for an existing project (change order). */
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   parentProjectId: string | null;
 
   @Column({ type: 'int', nullable: true })

@@ -2,11 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
+  CheckCircle2,
   ExternalLink,
   Eye,
   FolderPlus,
   Loader2,
+  Minus,
   Pencil,
+  Plus,
   Save,
   Send,
   Trash2,
@@ -21,6 +24,7 @@ import {
   emptyNewClient,
 } from '../components/AdminPartyFields';
 import {
+  applyChangeOrderToProject,
   createProjectFromQuote,
   getAdminClients,
   getAdminDesigners,
@@ -277,6 +281,74 @@ export function QuoteDetailPage() {
     }
   };
 
+  const handleMarkAccepted = async () => {
+    if (!quoteId || !quote) return;
+    if (
+      !window.confirm(
+        'Mark this change order as accepted? You can then add it to the project inventory.',
+      )
+    ) {
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await updateQuote(quoteId, { status: 'accepted' });
+      setQuote(updated);
+      setForm(quoteToForm(updated));
+      setNotice('Change order marked as accepted');
+      setAuditRefreshKey((k) => k + 1);
+    } catch {
+      setError('Unable to mark change order as accepted');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleApplyToProject = async () => {
+    if (!quoteId || !quote?.parentProjectId) return;
+    const actionLabel = isReduction
+      ? 'Remove selected pieces from the project inventory?'
+      : 'Add quoted rooms and pieces to the project inventory?';
+    if (!window.confirm(actionLabel)) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await applyChangeOrderToProject(quoteId);
+      const updated = await getAdminQuote(quoteId);
+      setQuote(updated);
+      setForm(quoteToForm(updated));
+      setNotice(
+        isReduction
+          ? 'Scope reduction applied — pieces removed from project'
+          : 'Change order applied — inventory updated on project',
+      );
+      setAuditRefreshKey((k) => k + 1);
+    } catch {
+      setError(
+        isReduction
+          ? 'Could not apply reduction — ensure it is accepted and has removal targets'
+          : 'Could not apply change order — ensure it is accepted and has rooms/items',
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const changeOrderReadyForApproval = isReduction
+    ? (quote?.creditLineItems?.length ?? 0) > 0
+    : (quote?.rooms?.length ?? 0) > 0;
+  const canMarkAccepted =
+    isChangeOrder &&
+    !quote?.appliedAt &&
+    quote?.status !== 'accepted' &&
+    quote?.status !== 'declined';
+  const canApplyChangeOrder =
+    isChangeOrder &&
+    !quote?.appliedAt &&
+    quote?.status === 'accepted' &&
+    changeOrderReadyForApproval;
+
   const isQuoteDesignerReady =
     quoteDesignerMode === 'existing'
       ? !!fromQuote.designerId
@@ -365,10 +437,41 @@ export function QuoteDetailPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           {mode === 'view' ? (
-            <Button variant="outline" onClick={() => setEditMode('edit')} className="min-h-[44px]">
-              <Pencil size={14} className="mr-2" />
-              Edit
-            </Button>
+            <>
+              <Button variant="outline" onClick={() => setEditMode('edit')} className="min-h-[44px]">
+                <Pencil size={14} className="mr-2" />
+                Edit
+              </Button>
+              {isChangeOrder && !quote.appliedAt && (
+                <>
+                  {canMarkAccepted && (
+                    <Button
+                      variant="outline"
+                      onClick={() => void handleMarkAccepted()}
+                      loading={saving}
+                      className="min-h-[44px]"
+                    >
+                      <CheckCircle2 size={14} className="mr-2" />
+                      Mark accepted
+                    </Button>
+                  )}
+                  {canApplyChangeOrder && (
+                    <Button
+                      onClick={() => void handleApplyToProject()}
+                      loading={saving}
+                      className="min-h-[44px]"
+                    >
+                      {isReduction ? (
+                        <Minus size={14} className="mr-2" />
+                      ) : (
+                        <Plus size={14} className="mr-2" />
+                      )}
+                      {isReduction ? 'Remove from project' : 'Add to project'}
+                    </Button>
+                  )}
+                </>
+              )}
+            </>
           ) : (
             <>
               <Button variant="outline" onClick={() => { setForm(quoteToForm(quote)); setEditMode('view'); }} className="min-h-[44px]">
@@ -418,6 +521,101 @@ export function QuoteDetailPage() {
           {isReduction && ' · Scope reduction'}
           {quote.appliedAt && (isReduction ? ' · Removed from inventory' : ' · Applied to inventory')}
         </Link>
+      )}
+
+      {isChangeOrder && (
+        <section className="bg-white border border-cream-dark p-5 md:p-6 mb-6 space-y-4">
+          <h2 className={`${SECTION_HEADING}`}>
+            {isReduction ? 'Scope reduction workflow' : 'Change order workflow'}
+          </h2>
+          {quote.appliedAt ? (
+            <p className="text-sm text-emerald-800 flex items-center gap-2">
+              <CheckCircle2 size={16} />
+              {isReduction
+                ? 'This reduction has been applied to the project inventory.'
+                : 'This change order has been added to the project inventory.'}
+            </p>
+          ) : (
+            <>
+              <ol className="text-sm text-charcoal/75 space-y-2 list-decimal list-inside">
+                <li className={changeOrderReadyForApproval ? 'text-charcoal' : ''}>
+                  {isReduction
+                    ? 'Confirm credit line items (created from project scope selection)'
+                    : 'Add rooms and catalogue items (Edit quote)'}
+                  {changeOrderReadyForApproval && (
+                    <span className="ml-2 text-emerald-700 text-xs uppercase tracking-wider">
+                      Done
+                    </span>
+                  )}
+                </li>
+                <li className={quote.status === 'accepted' ? 'text-charcoal' : ''}>
+                  Send to the client for approval, or mark accepted internally
+                  {quote.status === 'accepted' && (
+                    <span className="ml-2 text-emerald-700 text-xs uppercase tracking-wider">
+                      Done
+                    </span>
+                  )}
+                </li>
+                <li>
+                  {isReduction ? 'Remove items from project inventory' : 'Add items to project inventory'}
+                </li>
+              </ol>
+              {!changeOrderReadyForApproval && !isReduction && (
+                <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 px-3 py-2">
+                  Add at least one room with catalogue items before you can finalize this change order.
+                </p>
+              )}
+              {quote.status === 'accepted' && !changeOrderReadyForApproval && (
+                <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 px-3 py-2">
+                  Accepted, but nothing to apply yet — {isReduction ? 'no removal targets' : 'add rooms first'}.
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2 pt-1">
+                {!changeOrderReadyForApproval && !isReduction && (
+                  <Button onClick={() => setEditMode('edit')} className="min-h-[44px]">
+                    <Pencil size={14} className="mr-2" />
+                    Add rooms & items
+                  </Button>
+                )}
+                {canMarkAccepted && (
+                  <Button
+                    variant="outline"
+                    onClick={() => void handleMarkAccepted()}
+                    loading={saving}
+                    className="min-h-[44px]"
+                  >
+                    <CheckCircle2 size={14} className="mr-2" />
+                    Mark accepted
+                  </Button>
+                )}
+                {mode === 'view' && canMarkAccepted && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setEditMode('edit')}
+                    className="min-h-[44px]"
+                  >
+                    <Send size={14} className="mr-2" />
+                    Send to client
+                  </Button>
+                )}
+                {canApplyChangeOrder && (
+                  <Button
+                    onClick={() => void handleApplyToProject()}
+                    loading={saving}
+                    className="min-h-[44px]"
+                  >
+                    {isReduction ? (
+                      <Minus size={14} className="mr-2" />
+                    ) : (
+                      <Plus size={14} className="mr-2" />
+                    )}
+                    {isReduction ? 'Remove from project inventory' : 'Add to project inventory'}
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
+        </section>
       )}
 
       <div className="space-y-6">
@@ -962,6 +1160,31 @@ export function QuoteDetailPage() {
             <Save size={14} className="mr-2" />
             Save changes
           </Button>
+          {canMarkAccepted && (
+            <Button
+              variant="outline"
+              onClick={() => void handleMarkAccepted()}
+              loading={saving}
+              className="flex-1 min-h-[48px]"
+            >
+              <CheckCircle2 size={14} className="mr-2" />
+              Mark accepted
+            </Button>
+          )}
+          {canApplyChangeOrder && (
+            <Button
+              onClick={() => void handleApplyToProject()}
+              loading={saving}
+              className="flex-1 min-h-[48px]"
+            >
+              {isReduction ? (
+                <Minus size={14} className="mr-2" />
+              ) : (
+                <Plus size={14} className="mr-2" />
+              )}
+              {isReduction ? 'Remove from project' : 'Add to project'}
+            </Button>
+          )}
           <Button onClick={() => void handleSend()} loading={saving} className="flex-1 min-h-[48px]">
             <Send size={14} className="mr-2" />
             Send to client for approval

@@ -18,8 +18,8 @@ source "$ROOT/deploy/scripts/lib/db-env.sh"
 REGION="${AWS_REGION:-us-east-1}"
 INSTANCE_ID="${1:-$(wgs_find_instance_by_role active)}"
 BUCKET="$(wgs_stack_output BucketName)"
-DB_SECRET_ARN="$(wgs_stack_output DbSecretArn)"
 STATE_FILE="$ROOT/deploy/.pg-migrate-state.json"
+REMOTE_SCRIPT_KEY="deploy/scripts/run-mysql-to-postgresql-remote.sh"
 
 WGS_PG_ENDPOINT="${WGS_PG_ENDPOINT:-$(wgs_stack_output PostgresEndpoint)}"
 WGS_PG_SECRET_ARN="${WGS_PG_SECRET_ARN:-$(wgs_stack_output PgSecretArn)}"
@@ -40,44 +40,37 @@ if [[ -z "${WGS_PG_ENDPOINT:-}" || -z "${WGS_PG_SECRET_ARN:-}" || "$WGS_PG_ENDPO
   exit 1
 fi
 
-MYSQL_JSON=$(wgs_fetch_db_secret "$DB_SECRET_ARN" "$REGION")
-PG_JSON=$(wgs_fetch_db_secret "$WGS_PG_SECRET_ARN" "$REGION")
+echo "Uploading remote migration script to s3://${BUCKET}/${REMOTE_SCRIPT_KEY} ..."
+aws s3 cp "$ROOT/deploy/scripts/lib/run-mysql-to-postgresql-remote.sh" \
+  "s3://${BUCKET}/${REMOTE_SCRIPT_KEY}" --region "$REGION"
 
-MYSQL_USER=$(wgs_secret_field "$MYSQL_JSON" username)
-MYSQL_PASS=$(wgs_secret_field "$MYSQL_JSON" password)
-MYSQL_DB=$(wgs_secret_field "$MYSQL_JSON" dbname)
-MYSQL_HOST=$(wgs_secret_field "$MYSQL_JSON" host)
-[[ -z "$MYSQL_HOST" ]] && MYSQL_HOST="$(wgs_stack_output RdsEndpoint)"
-
-PG_USER=$(wgs_secret_field "$PG_JSON" username)
-PG_PASS=$(wgs_secret_field "$PG_JSON" password)
-PG_DB=$(wgs_secret_field "$PG_JSON" dbname)
-
-REMOTE_LIB_B64=$(base64 < "$ROOT/deploy/scripts/lib/run-mysql-to-postgresql-remote.sh" | tr -d '\n')
-
-REMOTE=$(cat <<REMOTE
+REMOTE=$(cat <<EOF
 set -euo pipefail
-echo '$REMOTE_LIB_B64' | base64 -d > /tmp/wgs-pg-migrate-remote.sh
-chmod +x /tmp/wgs-pg-migrate-remote.sh
-export MYSQL_HOST='${MYSQL_HOST}'
-export MYSQL_USER='${MYSQL_USER}'
-export MYSQL_PASSWORD='$(printf '%s' "$MYSQL_PASS" | sed "s/'/'\\\\''/g")'
-export MYSQL_DATABASE='${MYSQL_DB}'
+wgs_env() { grep -E "^\${1}=" /opt/wgs/.env | head -1 | cut -d= -f2-; }
+export MYSQL_HOST=\$(wgs_env DB_HOST)
+export MYSQL_USER=\$(wgs_env DB_USERNAME)
+export MYSQL_PASSWORD=\$(wgs_env DB_PASSWORD)
+export MYSQL_DATABASE=\$(wgs_env DB_DATABASE)
 export PG_HOST='${WGS_PG_ENDPOINT}'
-export PG_USER='${PG_USER}'
-export PG_PASSWORD='$(printf '%s' "$PG_PASS" | sed "s/'/'\\\\''/g")'
-export PG_DATABASE='${PG_DB}'
+PG_JSON=\$(aws secretsmanager get-secret-value --secret-id '${WGS_PG_SECRET_ARN}' --region '${REGION}' --query SecretString --output text)
+export PG_USER=\$(echo "\$PG_JSON" | jq -r '.username')
+export PG_PASSWORD=\$(echo "\$PG_JSON" | jq -r '.password')
+export PG_DATABASE=\$(echo "\$PG_JSON" | jq -r '.dbname // "white_glove_delivery"')
 export S3_BUCKET='${BUCKET}'
 export AWS_REGION='${REGION}'
 export SKIP_BACKUP='${WGS_SKIP_MYSQL_BACKUP:-0}'
-/tmp/wgs-pg-migrate-remote.sh
-REMOTE
+SCRIPT=/tmp/wgs-pg-migrate-remote.sh
+aws s3 cp "s3://${BUCKET}/${REMOTE_SCRIPT_KEY}" "\$SCRIPT" --region '${REGION}'
+chmod +x "\$SCRIPT"
+"\$SCRIPT"
+EOF
 )
 
 echo "Running pgloader migration on $INSTANCE_ID via SSM (may take 10–30 min) ..."
 if ! wgs_ssm_run_shell "$INSTANCE_ID" "$REMOTE" 3600; then
   echo "SSM failed: ${WGS_SSM_STATUS:-unknown}"
   echo "$WGS_SSM_STDERR"
+  echo "$WGS_SSM_STDOUT"
   exit 1
 fi
 echo "$WGS_SSM_STDOUT"
