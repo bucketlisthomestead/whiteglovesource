@@ -93,7 +93,8 @@ if [[ -n "$EXISTING_CANDIDATE" && "$EXISTING_CANDIDATE" != "None" ]]; then
   fi
 fi
 
-USER_DATA="$(wgs_build_user_data "$REGION" "$BUCKET" "$DB_SECRET_ARN" "$JWT_SECRET_ARN" "$RDS_ENDPOINT")"
+USER_DATA="$(wgs_build_user_data "$REGION" "$BUCKET" "$DB_SECRET_ARN" "$JWT_SECRET_ARN" "$RDS_ENDPOINT")" \
+  || { echo "Failed to build EC2 user-data (see errors above)."; exit 1; }
 
 echo "Launching candidate instance (type=$INSTANCE_TYPE, subnet=$SUBNET_ID) ..."
 INSTANCE_ID=$(aws ec2 run-instances \

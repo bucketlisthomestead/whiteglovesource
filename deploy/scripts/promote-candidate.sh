@@ -60,6 +60,35 @@ if [[ "$ACTIVE_ID" == "$CANDIDATE_ID" ]]; then
   exit 1
 fi
 
+echo "Pre-flight: verifying candidate bootstrap and health ..."
+CAND_IP="$(wgs_instance_public_ip "$CANDIDATE_ID")"
+if [[ -z "$CAND_IP" || "$CAND_IP" == "None" ]]; then
+  echo "Could not resolve candidate public IP for $CANDIDATE_ID."
+  exit 1
+fi
+
+if wgs_candidate_userdata_corrupt "$CANDIDATE_ID"; then
+  echo "ERROR: Candidate user-data/bootstrap is broken on $CANDIDATE_ID."
+  [[ -n "${WGS_USERDATA_CORRUPT_REASON:-}" ]] && echo "  ${WGS_USERDATA_CORRUPT_REASON}"
+  echo "  Terminate the candidate and re-run blue-green deploy."
+  exit 1
+fi
+
+if ! wgs_ssm_run_shell "$CANDIDATE_ID" \
+  'test -f /opt/wgs/.env && echo ready || echo missing' 90 \
+  || [[ "${WGS_SSM_STDOUT:-}" != *ready* ]]; then
+  echo "ERROR: Candidate bootstrap incomplete (/opt/wgs/.env missing on $CANDIDATE_ID)."
+  echo "  Run: ./deploy/scripts/push-and-deploy-ssm.sh $CANDIDATE_ID"
+  exit 1
+fi
+
+if ! curl -sf --max-time 10 "http://${CAND_IP}/api/health" >/dev/null 2>&1; then
+  echo "ERROR: Candidate health check failed at http://${CAND_IP}/api/health"
+  echo "  Fix the candidate before promoting live traffic."
+  exit 1
+fi
+echo "Candidate pre-flight OK (http://${CAND_IP}/api/health)."
+
 ALLOC_ID=$(aws ec2 describe-addresses \
   --public-ips "$EIP" \
   --query 'Addresses[0].AllocationId' \
@@ -71,6 +100,16 @@ if [[ -z "$ALLOC_ID" || "$ALLOC_ID" == "None" ]]; then
   exit 1
 fi
 
+CAND_IP="$(wgs_instance_public_ip "$CANDIDATE_ID")"
+echo "=== Preflight: verify candidate before moving live traffic ==="
+if ! wgs_verify_candidate_ready "$CANDIDATE_ID" "$CAND_IP"; then
+  echo ""
+  echo "Promotion aborted — live site stays on $ACTIVE_ID ($EIP)."
+  echo "Fix the candidate, then re-run promote. With --terminate-old, the old instance is NOT removed until preflight passes."
+  exit 1
+fi
+
+echo ""
 echo "Disassociating EIP $EIP from $ACTIVE_ID ..."
 ASSOC_ID=$(aws ec2 describe-addresses \
   --public-ips "$EIP" \

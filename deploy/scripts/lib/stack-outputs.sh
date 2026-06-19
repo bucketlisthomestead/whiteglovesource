@@ -64,10 +64,14 @@ wgs_build_user_data() {
   local db_secret_arn="$3"
   local jwt_secret_arn="$4"
   local rds_endpoint="$5"
-  local root
-  root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-  local script
+  local root script
+  # lib/ is three levels below repo root (deploy/scripts/lib -> ../../..)
+  root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
   script="$(cat "$root/deploy/scripts/user-data.sh")"
+  if [[ -z "$script" ]] || ! grep -q 'Starting user-data bootstrap' <<<"$script"; then
+    echo "wgs_build_user_data: failed to read deploy/scripts/user-data.sh from $root" >&2
+    return 1
+  fi
   # cloud-init requires #!/bin/bash on line 1 (CDK UserData.forLinux() does this; run-instances does not).
   cat <<EOF
 #!/bin/bash
@@ -153,14 +157,52 @@ wgs_candidate_userdata_corrupt() {
     'if grep -q "Unhandled non-multipart" /var/log/cloud-init-output.log 2>/dev/null; then
   grep -m1 "Unhandled non-multipart" /var/log/cloud-init-output.log
   echo corrupt
+elif [[ -f /var/lib/cloud/instance/user-data.txt ]] && ! grep -q "Starting user-data bootstrap" /var/lib/cloud/instance/user-data.txt 2>/dev/null; then
+  echo "user-data missing bootstrap script (truncated or empty embed)"
+  echo corrupt
+elif cloud-init status 2>/dev/null | grep -q done && [[ ! -f /var/log/wgs-user-data.log ]]; then
+  echo "cloud-init done but wgs-user-data.log missing (bootstrap never ran)"
+  echo corrupt
 else
   echo ok
 fi' 60; then
     return 1
   fi
   if [[ "$WGS_SSM_STDOUT" == *corrupt* ]]; then
-    WGS_USERDATA_CORRUPT_REASON=$(echo "$WGS_SSM_STDOUT" | grep "Unhandled non-multipart" | head -1)
+    WGS_USERDATA_CORRUPT_REASON=$(echo "$WGS_SSM_STDOUT" | grep -v '^corrupt$' | grep -v '^ok$' | head -1)
     return 0
   fi
   return 1
+}
+
+# Verify candidate is bootstrapped and serving before EIP swap.
+wgs_verify_candidate_ready() {
+  local instance_id="$1"
+  local cand_ip="$2"
+
+  if [[ -z "$cand_ip" || "$cand_ip" == "None" ]]; then
+    cand_ip="$(wgs_instance_public_ip "$instance_id")"
+  fi
+
+  echo "Preflight: http://${cand_ip}/api/health ..."
+  if ! curl -sf --max-time 10 "http://${cand_ip}/api/health" >/dev/null; then
+    echo "ERROR: Candidate health check failed at http://${cand_ip}/api/health"
+    echo "Deploy the app to the candidate before promoting (or fix bootstrap)."
+    return 1
+  fi
+
+  echo "Preflight: SSM bootstrap + Docker on $instance_id ..."
+  if ! wgs_ssm_run_shell "$instance_id" \
+    'test -f /opt/wgs/.env && command -v docker >/dev/null && docker ps --format "{{.Names}}" | grep -q "^wgs-api$" && docker ps --format "{{.Names}}" | grep -q "^wgs-nginx$" && echo ready' 90; then
+    echo "ERROR: Could not verify candidate via SSM (status=${WGS_SSM_STATUS:-unknown})."
+    return 1
+  fi
+  if [[ "$WGS_SSM_STDOUT" != *ready* ]]; then
+    echo "ERROR: Candidate missing /opt/wgs/.env or wgs-api/wgs-nginx containers."
+    echo "$WGS_SSM_STDOUT"
+    return 1
+  fi
+
+  echo "Candidate preflight OK."
+  return 0
 }
