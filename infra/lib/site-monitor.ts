@@ -97,9 +97,12 @@ export class SiteMonitor extends Construct {
       description: 'URL polled by the health checker Lambda',
     });
 
-    const subscriptionHint = props.alertEmail
+    let subscriptionHint = props.alertEmail
       ? `Confirm the SNS email subscription sent to ${props.alertEmail} before alerts will arrive.`
       : 'No alertEmail configured — add -c alertEmail=you@example.com and redeploy to subscribe.';
+    if (props.alertPhone) {
+      subscriptionHint += ` SMS to ${props.alertPhone} requires SNS sandbox verification (create-sms-sandbox-phone-number, then verify-sms-sandbox-phone-number with the OTP).`;
+    }
 
     new cdk.CfnOutput(this, 'AlertSubscriptionHint', {
       value: subscriptionHint,
