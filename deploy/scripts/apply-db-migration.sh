@@ -38,7 +38,12 @@ aws s3 cp "$SQL_FILE" "s3://${BUCKET}/${S3_KEY}" --region "$REGION"
 
 REMOTE_CMD=$(cat <<EOF
 set -euo pipefail
-source /opt/wgs/.env
+wgs_env() { grep -E "^\${1}=" /opt/wgs/.env | head -1 | cut -d= -f2-; }
+DB_HOST=\$(wgs_env DB_HOST)
+DB_PORT=\$(wgs_env DB_PORT)
+DB_USERNAME=\$(wgs_env DB_USERNAME)
+DB_PASSWORD=\$(wgs_env DB_PASSWORD)
+DB_DATABASE=\$(wgs_env DB_DATABASE)
 TMP="/tmp/wgs-migration-\$\$.sql"
 aws s3 cp "s3://${BUCKET}/${S3_KEY}" "\$TMP" --region "${REGION}"
 while IFS= read -r line || [[ -n "\$line" ]]; do
@@ -49,7 +54,7 @@ while IFS= read -r line || [[ -n "\$line" ]]; do
       stmt=""
       continue
     fi
-    if mysql -h "\$DB_HOST" -P "\${DB_PORT:-3306}" -u "\$DB_USERNAME" -p"\$DB_PASSWORD" "\$DB_DATABASE" -e "\$stmt_trimmed" 2>/tmp/wgs-mig-err; then
+    if mysql -h "\$DB_HOST" -P "\${DB_PORT:-3306}" -u "\$DB_USERNAME" -p"\${DB_PASSWORD}" "\$DB_DATABASE" -e "\$stmt_trimmed" 2>/tmp/wgs-mig-err; then
       echo "OK: \${stmt_trimmed:0:80}..."
     else
       err=\$(cat /tmp/wgs-mig-err)
