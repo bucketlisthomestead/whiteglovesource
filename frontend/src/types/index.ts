@@ -458,7 +458,7 @@ export interface UpdateProjectForm {
 export interface CreateProjectFromQuoteForm {
   designerId?: string;
   newDesigner?: CreateDesignerInput;
-  name?: string;
+  name: string;
   clientId?: string;
   newClient?: CreateClientInput;
 }

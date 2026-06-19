@@ -65,6 +65,7 @@ export const getPiece = (id: string) =>
 export interface ProjectLabelData {
   projectId: string;
   projectName: string;
+  labelTitle: string;
   jobNumber: string;
   printedAt: string;
   labels: {
