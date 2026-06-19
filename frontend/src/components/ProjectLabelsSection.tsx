@@ -8,7 +8,7 @@ import {
   getProjectLabelPdfs,
 } from '../api/client';
 import type { ProjectLabelPdfVersion } from '../types';
-import { buildScanUrl, formatJobNumber, formatLabelDate } from '../lib/scan';
+import { buildScanUrl, displayProjectName, formatLabelDate } from '../lib/scan';
 import {
   DEFAULT_LABEL_TEMPLATE_ID,
   LABEL_SHEET_TEMPLATES,
@@ -40,7 +40,7 @@ export function ProjectLabelsSection({
   const sectionRef = useRef<HTMLElement>(null);
   const [loading, setLoading] = useState(true);
   const [labels, setLabels] = useState<LabelItem[]>([]);
-  const [jobNumber, setJobNumber] = useState('');
+  const [labelTitle, setLabelTitle] = useState('');
   const [printedAt, setPrintedAt] = useState(formatLabelDate());
   const [templateId, setTemplateId] = useState(DEFAULT_LABEL_TEMPLATE_ID);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -68,7 +68,7 @@ export function ProjectLabelsSection({
         if (!isDemo) {
           try {
             const data = await getProjectLabels(projectId);
-            setJobNumber(data.jobNumber);
+            setLabelTitle(data.labelTitle);
             setPrintedAt(formatLabelDate(data.printedAt));
             setLabels(
               data.labels
@@ -86,7 +86,7 @@ export function ProjectLabelsSection({
           }
         }
 
-        setJobNumber(formatJobNumber(projectId));
+        setLabelTitle(displayProjectName(projectId, project.name));
         setPrintedAt(formatLabelDate());
         setLabels(
           (project.pieces as Piece[])
@@ -133,7 +133,7 @@ export function ProjectLabelsSection({
     setPdfLoading(true);
     try {
       await downloadLabelsPdf(labels, template, {
-        jobNumber,
+        labelTitle,
         printedAt,
         projectName: project.name,
       });
@@ -188,7 +188,7 @@ export function ProjectLabelsSection({
             <h3 className="text-sm font-medium uppercase tracking-wider text-charcoal/70">Inventory Labels</h3>
           </div>
           <p className="text-sm text-charcoal/50">
-            {labels.length} label{labels.length === 1 ? '' : 's'} · {jobNumber}
+            {labels.length} label{labels.length === 1 ? '' : 's'} · {labelTitle}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 shrink-0">
@@ -298,7 +298,7 @@ export function ProjectLabelsSection({
                 <article key={label.pieceId} className="label-card" style={previewStyles.card}>
                   <div className="label-card-inner">
                     <div className="label-meta">
-                      <p className="label-job" style={previewStyles.job}>{jobNumber}</p>
+                      <p className="label-job" style={previewStyles.job}>{labelTitle}</p>
                       <p className="label-name" style={previewStyles.name}>{label.pieceName}</p>
                       {label.roomName && (
                         <p className="label-room" style={previewStyles.room}>{label.roomName}</p>
