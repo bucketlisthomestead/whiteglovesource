@@ -13,6 +13,7 @@ import { ProjectsController } from './projects.controller';
 import { ProjectsService } from './projects.service';
 import { ProjectAuditService } from './project-audit.service';
 import { SignoffsModule } from '../signoffs/signoffs.module';
+import { RolesModule } from '../roles/roles.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { SignoffsModule } from '../signoffs/signoffs.module';
       ProjectMessage,
     ]),
     forwardRef(() => SignoffsModule),
+    RolesModule,
   ],
   controllers: [ProjectsController],
   providers: [ProjectsService, ProjectAuditService],

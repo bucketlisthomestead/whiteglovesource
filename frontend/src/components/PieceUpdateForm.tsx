@@ -3,7 +3,7 @@ import { Camera, Check } from 'lucide-react';
 import { Button, FormField, inputClass, selectClass, textareaClass } from './Layout';
 import type { Piece, PieceEventForm, PieceStage, ConditionRating } from '../types';
 import { STAGE_LABELS, CONDITION_LABELS, STAGE_TO_PHOTO_MILESTONE, PHOTO_MILESTONE_LABELS } from '../lib/labels';
-import { addPieceEvent, uploadPhoto } from '../api/client';
+import { addPieceEvent, scanCheckIn, uploadPhoto } from '../api/client';
 import { queuePieceEvent } from '../offline/sync';
 import { updateCachedPiece } from '../offline/db';
 import { applyDemoPieceUpdate } from '../offline/demoLocal';
@@ -16,9 +16,18 @@ interface PieceUpdateFormProps {
   onCancel: () => void;
   isDemo?: boolean;
   layout?: 'inline' | 'modal';
+  /** When set, submits via POST /api/scan/:token/check-in instead of piece id. */
+  submitViaScan?: string;
 }
 
-export function PieceUpdateForm({ piece, onSuccess, onCancel, isDemo, layout = 'inline' }: PieceUpdateFormProps) {
+export function PieceUpdateForm({
+  piece,
+  onSuccess,
+  onCancel,
+  isDemo,
+  layout = 'inline',
+  submitViaScan,
+}: PieceUpdateFormProps) {
   const { user } = useAuth();
   const { isOnline, refreshPending } = useOffline();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -78,16 +87,19 @@ export function PieceUpdateForm({ piece, onSuccess, onCancel, isDemo, layout = '
 
       if (isOnline) {
         try {
-          const result = await addPieceEvent(piece.id, {
-            ...form,
-            photoUrl,
-            photoMilestone,
-          });
+          const payload = { ...form, photoUrl, photoMilestone };
+          const result = submitViaScan
+            ? await scanCheckIn(submitViaScan, payload)
+            : await addPieceEvent(piece.id, payload);
           onSuccess({ ...piece, ...result });
           return;
         } catch {
           // fall through to offline queue
         }
+      }
+
+      if (submitViaScan) {
+        throw new Error('Scan check-in requires an online connection');
       }
 
       await queuePieceEvent(piece.id, { ...form, photoUrl }, user?.name);

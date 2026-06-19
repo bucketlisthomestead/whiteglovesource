@@ -45,6 +45,7 @@ import { RecordAuditService } from '../audit/record-audit.service';
 import { QuoteAuditService } from '../audit/quote-audit.service';
 import { CreateQuoteMessageDto } from '../common/quote-message.dto';
 import { UserRole } from '../common/roles';
+import { generateScanToken } from '../common/scan-token';
 import { RolesService } from '../roles/roles.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
@@ -343,6 +344,7 @@ export class AdminService {
               currentStage: PieceStage.IDENTIFIED,
               currentCondition: ConditionRating.EXCELLENT,
               currentLocation: 'On inventory manifest — awaiting pickup',
+              scanToken: generateScanToken(),
             }),
           );
         }

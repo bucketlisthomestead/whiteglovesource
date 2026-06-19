@@ -33,6 +33,7 @@ import { PieceStagePhoto } from '../entities/piece-stage-photo.entity';
 import { Signoff } from '../entities/signoff.entity';
 import { PieceCatalogItem } from '../entities/piece-catalog-item.entity';
 import { StorageLocation } from '../entities/storage-location.entity';
+import { generateScanToken } from '../common/scan-token';
 
 @Injectable()
 export class SeedService implements OnModuleInit {
@@ -97,6 +98,7 @@ export class SeedService implements OnModuleInit {
         this.signoffRepo,
         existing.id,
       );
+      await this.backfillScanTokens();
       this.logger.log('Demo data already seeded');
       return;
     }
@@ -119,7 +121,22 @@ export class SeedService implements OnModuleInit {
       this.signoffRepo,
       projectId,
     );
+    await this.backfillScanTokens();
     this.logger.log('Demo data seeded successfully');
+  }
+
+  private async backfillScanTokens() {
+    const missing = await this.pieceRepo
+      .createQueryBuilder('piece')
+      .where('piece.scanToken IS NULL')
+      .getMany();
+    for (const piece of missing) {
+      piece.scanToken = generateScanToken();
+      await this.pieceRepo.save(piece);
+    }
+    if (missing.length) {
+      this.logger.log(`Assigned scan tokens to ${missing.length} piece(s)`);
+    }
   }
 
   private async seedUsersIfNeeded(designerId: string, clientId: string) {
@@ -427,6 +444,7 @@ export class SeedService implements OnModuleInit {
           value: data.value,
           photoUrl: photo,
           installDestination: InstallDestination.FINAL_SITE,
+          scanToken: generateScanToken(),
         }),
       );
 

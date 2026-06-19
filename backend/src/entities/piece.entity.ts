@@ -87,6 +87,10 @@ export class Piece {
   @Column({ type: 'varchar', length: 36, nullable: true })
   roomId: string | null;
 
+  /** Unique token encoded in label QR codes for scan/check-in. */
+  @Column({ type: 'varchar', length: 16, unique: true, nullable: true })
+  scanToken: string | null;
+
   @OneToMany(() => PieceEvent, (event) => event.piece)
   events: PieceEvent[];
 

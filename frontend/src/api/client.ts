@@ -12,6 +12,7 @@ import type {
   Piece,
   PieceEvent,
   PieceEventForm,
+  PieceStage,
   Project,
   ProjectPhase,
   QuoteForm,
@@ -60,6 +61,30 @@ export const getMyProjects = () =>
 
 export const getPiece = (id: string) =>
   api.get<Piece & { events: PieceEvent[] }>(`/projects/pieces/${id}`).then((r) => r.data);
+
+export interface ProjectLabelData {
+  projectId: string;
+  projectName: string;
+  jobNumber: string;
+  printedAt: string;
+  labels: {
+    pieceId: string;
+    scanToken: string | null;
+    pieceName: string;
+    roomName: string | null;
+    currentStage: PieceStage;
+    currentLocation: string | null;
+  }[];
+}
+
+export const getProjectLabels = (projectId: string) =>
+  api.get<ProjectLabelData>(`/projects/${projectId}/labels`).then((r) => r.data);
+
+export const getPieceByScanToken = (token: string) =>
+  api.get<Piece & { events: PieceEvent[]; jobNumber: string }>(`/scan/${token}`).then((r) => r.data);
+
+export const scanCheckIn = (token: string, data: PieceEventForm) =>
+  api.post<Piece & { events: PieceEvent[] }>(`/scan/${token}/check-in`, data).then((r) => r.data);
 
 export const submitContact = (data: ContactForm) =>
   api.post('/contact', data).then((r) => r.data);

@@ -196,6 +196,7 @@ export interface Piece {
   pickupLocationId?: string | null;
   room?: Room | null;
   roomId?: string | null;
+  scanToken?: string | null;
   projectId?: string;
   stagePhotos?: PieceStagePhoto[];
   signoffs?: Signoff[];

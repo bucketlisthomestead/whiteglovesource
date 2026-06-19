@@ -14,7 +14,10 @@ import { CreateProjectMessageDto } from '../common/project-message.dto';
 import { Public } from '../common/decorators';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
+import { PermissionsGuard } from '../auth/permissions.guard';
 import { Roles } from '../common/decorators';
+import { RequireAnyPermissions } from '../common/permissions.decorator';
+import { PERMISSIONS } from '../common/permissions';
 import { UserRole } from '../common/roles';
 import { User } from '../entities/user.entity';
 
@@ -47,6 +50,13 @@ export class ProjectsController {
   @Get('pieces/:pieceId')
   findPiece(@Param('pieceId') pieceId: string) {
     return this.projectsService.findPiece(pieceId);
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequireAnyPermissions(PERMISSIONS.PROJECTS_MANAGE, PERMISSIONS.FIELD_USE)
+  @Get(':id/labels')
+  getLabels(@Param('id') id: string, @Req() req: { user: User }) {
+    return this.projectsService.getProjectLabels(id, req.user);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

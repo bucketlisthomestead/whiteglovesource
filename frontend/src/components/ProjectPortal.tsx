@@ -37,7 +37,7 @@ import {
 } from '../lib/labels';
 import {
   MapPin, Calendar, User, Building2, Package, ChevronRight, X,
-  Loader2, AlertCircle, Pencil, Wifi, RotateCcw,
+  Loader2, AlertCircle, Pencil, Wifi, RotateCcw, Printer,
 } from 'lucide-react';
 
 interface ProjectPortalProps {
@@ -67,6 +67,8 @@ export function ProjectPortal({ projectId, isDemo }: ProjectPortalProps) {
     isDemo ||
     !!(user && (isDesigner || hasPermission(PERMISSIONS.PROJECTS_MANAGE)));
   const canAdvance = hasPermission(PERMISSIONS.PROJECTS_ADVANCE);
+  const canPrintLabels =
+    isDemo || canEdit || hasPermission(PERMISSIONS.FIELD_USE);
 
   useEffect(() => {
     const tab = searchParams.get('tab');
@@ -353,12 +355,22 @@ export function ProjectPortal({ projectId, isDemo }: ProjectPortalProps) {
               </span>
               {!isDemo && <h2 className="font-serif text-xl mt-2">{project.name}</h2>}
             </div>
-            {user && !isDemo && (
-              <PdfExportMenu
-                loading={pdfLoading}
-                onExport={setPendingExport}
-              />
-            )}
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {canPrintLabels && (
+                <Link
+                  to={`/project/${project.id}/labels`}
+                  className="inline-flex items-center justify-center gap-1.5 text-[10px] uppercase tracking-wider text-charcoal hover:text-gold border border-cream-dark bg-white px-3 py-2 min-h-[36px]"
+                >
+                  <Printer size={12} /> Print Labels
+                </Link>
+              )}
+              {user && !isDemo && (
+                <PdfExportMenu
+                  loading={pdfLoading}
+                  onExport={setPendingExport}
+                />
+              )}
+            </div>
           </div>
 
           {user && !isDemo && (

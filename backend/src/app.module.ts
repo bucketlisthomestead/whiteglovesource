@@ -57,6 +57,7 @@ import { SiteContentDraft } from './entities/site-content-draft.entity';
 import { SiteContentDraftEntry } from './entities/site-content-draft-entry.entity';
 import { SiteContentFeedback } from './entities/site-content-feedback.entity';
 import { SiteMenuVersion } from './entities/site-menu-version.entity';
+import { ScanModule } from './scan/scan.module';
 
 @Module({
   imports: [
@@ -131,6 +132,7 @@ import { SiteMenuVersion } from './entities/site-menu-version.entity';
     PhasePaymentsModule,
     SiteContentModule,
     SiteMenuModule,
+    ScanModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -14,6 +14,7 @@ import { Room } from '../entities/room.entity';
 import { PickupLocation } from '../entities/pickup-location.entity';
 import { ScheduledJob } from '../entities/scheduled-job.entity';
 import { CreatePieceEventDto } from '../common/dto';
+import { formatJobNumber, generateScanToken } from '../common/scan-token';
 import { PieceStage, ProjectPhase, STAGE_PHASE } from '../common/enums';
 import { PhotoMilestone, STAGE_TO_PHOTO_MILESTONE } from '../common/signoff';
 import { SignoffsService } from '../signoffs/signoffs.service';
@@ -138,6 +139,7 @@ export class ProjectsService {
     if (!piece) {
       throw new NotFoundException('Piece not found');
     }
+    await this.ensurePieceScanToken(piece);
     piece.events.sort(
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
@@ -146,6 +148,99 @@ export class ProjectsService {
       await this.signoffsService.findStagePhotosByPiece(pieceId);
     const signoffs = await this.signoffsService.findByPiece(pieceId);
     return { ...piece, stagePhotos, signoffs };
+  }
+
+  async findPieceByScanToken(token: string) {
+    let piece = await this.pieceRepo.findOne({
+      where: { scanToken: token },
+      relations: {
+        room: true,
+        events: true,
+        project: { designer: true, client: true },
+      },
+    });
+    if (!piece) {
+      throw new NotFoundException('Invalid scan code');
+    }
+    piece = await this.ensurePieceScanToken(piece);
+    piece.events.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+    const stagePhotos =
+      await this.signoffsService.findStagePhotosByPiece(piece.id);
+    const signoffs = await this.signoffsService.findByPiece(piece.id);
+    return {
+      ...piece,
+      stagePhotos,
+      signoffs,
+      jobNumber: formatJobNumber(piece.projectId),
+    };
+  }
+
+  async getProjectLabels(projectId: string, user?: User) {
+    await this.assertProjectAccess(projectId, user);
+    const project = await this.projectRepo.findOne({ where: { id: projectId } });
+    if (!project) throw new NotFoundException('Project not found');
+
+    const pieces = await this.pieceRepo.find({
+      where: { projectId },
+      relations: { room: true },
+      order: { name: 'ASC' },
+    });
+
+    const labels = [];
+    for (const piece of pieces) {
+      const withToken = await this.ensurePieceScanToken(piece);
+      labels.push({
+        pieceId: withToken.id,
+        scanToken: withToken.scanToken,
+        pieceName: withToken.name,
+        roomName: withToken.room?.name ?? null,
+        currentStage: withToken.currentStage,
+        currentLocation: withToken.currentLocation,
+      });
+    }
+
+    return {
+      projectId: project.id,
+      projectName: project.name,
+      jobNumber: formatJobNumber(project.id),
+      printedAt: new Date().toISOString(),
+      labels,
+    };
+  }
+
+  async addPieceEventByScanToken(
+    token: string,
+    dto: CreatePieceEventDto,
+    user?: User,
+  ) {
+    const piece = await this.pieceRepo.findOne({ where: { scanToken: token } });
+    if (!piece) throw new NotFoundException('Invalid scan code');
+    return this.addPieceEvent(piece.id, dto, user);
+  }
+
+  async ensurePieceScanToken(piece: Piece): Promise<Piece> {
+    if (piece.scanToken) return piece;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const scanToken = generateScanToken();
+      try {
+        piece.scanToken = scanToken;
+        return await this.pieceRepo.save(piece);
+      } catch {
+        piece.scanToken = null;
+      }
+    }
+    throw new Error('Unable to assign scan token');
+  }
+
+  async backfillMissingScanTokens() {
+    const missing = await this.pieceRepo.find({ where: { scanToken: null as unknown as string } });
+    for (const piece of missing) {
+      await this.ensurePieceScanToken(piece);
+    }
+    return missing.length;
   }
 
   async addPieceEvent(pieceId: string, dto: CreatePieceEventDto, user?: User) {

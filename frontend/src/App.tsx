@@ -22,6 +22,8 @@ import { SiteContentPage } from './pages/SiteContentPage';
 import { SiteMenuPage } from './pages/SiteMenuPage';
 import { ProjectPage } from './pages/ProjectPage';
 import { FieldPage } from './pages/FieldPage';
+import { ScanPiecePage } from './pages/ScanPiecePage';
+import { LabelPrintPage } from './pages/LabelPrintPage';
 import { ProjectsListPage } from './components/ProjectPortal';
 
 function App() {
@@ -39,6 +41,8 @@ function App() {
                 <Route path="/quote" element={<QuotePage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/demo" element={<DemoPage />} />
+                <Route path="/scan/:token" element={<ScanPiecePage />} />
+                <Route path="/project/:id/labels" element={<LabelPrintPage />} />
               </Route>
 
               <Route element={<AuthenticatedGate />}>

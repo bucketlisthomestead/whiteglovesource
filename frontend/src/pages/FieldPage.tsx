@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { PieceUpdateForm } from '../components/PieceUpdateForm';
 import { getDemoProject, getMyProjects, getProject } from '../api/client';
 import { cacheProject } from '../offline/db';
@@ -10,6 +11,7 @@ import { PiecePhoto } from '../components/PiecePhoto';
 import { Search, Loader2, ChevronRight } from 'lucide-react';
 
 export function FieldPage() {
+  const [searchParams] = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedPiece, setSelectedPiece] = useState<Piece | null>(null);
@@ -41,6 +43,19 @@ export function FieldPage() {
     };
     load();
   }, []);
+
+  useEffect(() => {
+    const pieceId = searchParams.get('pieceId');
+    if (!pieceId || !projects.length) return;
+    for (const project of projects) {
+      const piece = project.pieces.find((p) => p.id === pieceId);
+      if (piece) {
+        setSelectedProject(project);
+        setSelectedPiece(piece);
+        break;
+      }
+    }
+  }, [searchParams, projects]);
 
   const filteredPieces = selectedProject?.pieces.filter((p) =>
     !search || p.name.toLowerCase().includes(search.toLowerCase()) ||
