@@ -53,7 +53,10 @@ if [[ -n "$EXISTING_CANDIDATE" && "$EXISTING_CANDIDATE" != "None" ]]; then
     REUSE_CANDIDATE=true
     if [[ "$(wgs_ssm_ping_status "$EXISTING_CANDIDATE")" == "Online" ]] \
       && wgs_candidate_userdata_corrupt "$EXISTING_CANDIDATE"; then
-      echo "Candidate $EXISTING_CANDIDATE has corrupt user-data (bootstrap will never finish); terminating..."
+      echo "Candidate $EXISTING_CANDIDATE: cloud-init rejected user-data (bootstrap will never finish)."
+      echo "  Cleaning up broken candidate and launching a fresh one (one-time if prior deploy used bad user-data)."
+      [[ -n "${WGS_USERDATA_CORRUPT_REASON:-}" ]] && echo "  ${WGS_USERDATA_CORRUPT_REASON}"
+      echo "  Terminating $EXISTING_CANDIDATE ..."
       aws ec2 terminate-instances --instance-ids "$EXISTING_CANDIDATE" --region "$REGION" >/dev/null
       aws ec2 wait instance-terminated --instance-ids "$EXISTING_CANDIDATE" --region "$REGION" 2>/dev/null \
         || sleep 30

@@ -68,7 +68,9 @@ wgs_build_user_data() {
   root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
   local script
   script="$(cat "$root/deploy/scripts/user-data.sh")"
+  # cloud-init requires #!/bin/bash on line 1 (CDK UserData.forLinux() does this; run-instances does not).
   cat <<EOF
+#!/bin/bash
 export AWS_REGION=${region}
 export WGS_BUCKET=${bucket}
 export WGS_DB_SECRET_ARN=${db_secret_arn}
@@ -142,12 +144,23 @@ wgs_ssm_run_shell() {
   return 1
 }
 
-# True when cloud-init rejected user-data (e.g. double-base64 encoding).
+# True when cloud-init rejected user-data (missing shebang, double-base64, etc.).
+# Sets WGS_USERDATA_CORRUPT_REASON when true (snippet from cloud-init-output.log).
 wgs_candidate_userdata_corrupt() {
   local instance_id="$1"
+  WGS_USERDATA_CORRUPT_REASON=""
   if ! wgs_ssm_run_shell "$instance_id" \
-    'grep -q "Unhandled non-multipart" /var/log/cloud-init-output.log 2>/dev/null && echo corrupt || echo ok' 60; then
+    'if grep -q "Unhandled non-multipart" /var/log/cloud-init-output.log 2>/dev/null; then
+  grep -m1 "Unhandled non-multipart" /var/log/cloud-init-output.log
+  echo corrupt
+else
+  echo ok
+fi' 60; then
     return 1
   fi
-  [[ "$WGS_SSM_STDOUT" == *corrupt* ]]
+  if [[ "$WGS_SSM_STDOUT" == *corrupt* ]]; then
+    WGS_USERDATA_CORRUPT_REASON=$(echo "$WGS_SSM_STDOUT" | grep "Unhandled non-multipart" | head -1)
+    return 0
+  fi
+  return 1
 }

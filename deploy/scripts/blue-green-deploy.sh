@@ -65,8 +65,10 @@ done
 
 if wgs_candidate_userdata_corrupt "$CANDIDATE_ID"; then
   echo ""
-  echo "ERROR: Candidate user-data was not executed (cloud-init rejected it — often double-base64 encoding)."
-  echo "  Terminate the candidate and re-run deploy:"
+  echo "ERROR: Candidate user-data was not executed (cloud-init rejected it)."
+  echo "  Common causes: missing #!/bin/bash on line 1, or legacy double-base64 encoding."
+  [[ -n "${WGS_USERDATA_CORRUPT_REASON:-}" ]] && echo "  ${WGS_USERDATA_CORRUPT_REASON}"
+  echo "  Terminate the candidate and re-run deploy (launch-candidate.sh will also auto-clean on retry):"
   echo "    aws ec2 terminate-instances --instance-ids $CANDIDATE_ID --region $REGION"
   echo "    ./deploy/scripts/blue-green-deploy.sh"
   exit 1
