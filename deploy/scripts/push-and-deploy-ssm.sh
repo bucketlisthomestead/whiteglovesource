@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 # Build, upload to S3, and deploy on EC2 via SSM (no SSH required).
 #
+# In-place deploy: builds images while old containers serve traffic, recreates
+# api, waits for /api/health, then updates nginx. Expect ~30s–2min API blip.
+# For zero downtime use blue-green-deploy.sh instead.
+#
+# EIP reassociation runs at the START for active instances only (drift recovery
+# after CDK replace). Candidate deploys never move the live Elastic IP.
+#
 # Usage:
 #   ./deploy/scripts/push-and-deploy-ssm.sh <instance-id> [s3-bucket]
 #
@@ -50,8 +57,52 @@ cat > "$TMP/remote-deploy.sh" <<REMOTE
 #!/bin/bash
 set -euo pipefail
 APP_DIR=/opt/wgs
+REGION="${REGION}"
+HEALTH_URL="http://127.0.0.1/api/health"
+HEALTH_TIMEOUT_SEC=180
+
+INSTANCE_ID=\$(curl -fsS -H "X-aws-ec2-metadata-token: \$(curl -fsS -X PUT \
+  http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 60')" \
+  http://169.254.169.254/latest/meta-data/instance-id)
+
+INSTANCE_ROLE=\$(aws ec2 describe-tags \
+  --filters "Name=resource-id,Values=\$INSTANCE_ID" "Name=key,Values=wgs-role" \
+  --query 'Tags[0].Value' --output text --region "\$REGION" 2>/dev/null || true)
+[[ "\$INSTANCE_ROLE" == "None" || -z "\$INSTANCE_ROLE" ]] && INSTANCE_ROLE=""
+
+# EIP reassociation runs FIRST and only on the active instance (or when EIP is unassociated).
+# Candidate deploys must never move the live Elastic IP — promote-candidate.sh handles that.
+wgs_ensure_elastic_ip() {
+  local alloc current
+  alloc=\$(aws cloudformation describe-stacks --stack-name WgsStack \
+    --query "Stacks[0].Outputs[?OutputKey=='ElasticIpAllocationId'].OutputValue" --output text --region "\$REGION" 2>/dev/null || true)
+  [[ -z "\$alloc" || "\$alloc" == "None" ]] && return 0
+
+  current=\$(aws ec2 describe-addresses --allocation-ids "\$alloc" --region "\$REGION" \
+    --query 'Addresses[0].InstanceId' --output text 2>/dev/null || true)
+  [[ "\$current" == "\$INSTANCE_ID" ]] && return 0
+
+  if [[ "\$INSTANCE_ROLE" == "candidate" || "\$INSTANCE_ROLE" == "retired" ]]; then
+    echo "Skipping EIP reassociation (wgs-role=\$INSTANCE_ROLE; live traffic stays on active instance)."
+    return 0
+  fi
+
+  if [[ -z "\$current" || "\$current" == "None" ]]; then
+    echo "Elastic IP unassociated — attaching to \$INSTANCE_ID ..."
+  elif [[ "\$INSTANCE_ROLE" == "active" || -z "\$INSTANCE_ROLE" ]]; then
+    echo "Elastic IP drift detected — re-associating with active instance \$INSTANCE_ID ..."
+  else
+    echo "Skipping EIP reassociation (instance \$INSTANCE_ID is not active)."
+    return 0
+  fi
+
+  aws ec2 associate-address --allocation-id "\$alloc" --instance-id "\$INSTANCE_ID" --region "\$REGION" || true
+}
+
+wgs_ensure_elastic_ip
+
 mkdir -p "\$APP_DIR"
-aws s3 cp "s3://${BUCKET}/${ARTIFACT_KEY}" /tmp/wgs-app.tar.gz --region "${REGION}"
+aws s3 cp "s3://${BUCKET}/${ARTIFACT_KEY}" /tmp/wgs-app.tar.gz --region "\$REGION"
 tar -xzf /tmp/wgs-app.tar.gz -C "\$APP_DIR"
 rm -f /tmp/wgs-app.tar.gz
 chown -R ec2-user:ec2-user "\$APP_DIR"
@@ -59,23 +110,36 @@ if [[ ! -f "\$APP_DIR/.env" ]]; then
   echo "Missing \$APP_DIR/.env — wait for EC2 user-data, then retry."
   exit 1
 fi
+
 cd "\$APP_DIR/deploy"
-docker compose -f docker-compose.prod.yml --env-file "\$APP_DIR/.env" up -d --build
-docker compose -f docker-compose.prod.yml ps
-# Ensure Elastic IP is attached (survives CDK instance replacement / CFN EIPAssociation removal)
-ALLOC=\$(aws cloudformation describe-stacks --stack-name WgsStack \
-  --query "Stacks[0].Outputs[?OutputKey=='ElasticIpAllocationId'].OutputValue" --output text --region "${REGION}" 2>/dev/null || true)
-if [[ -n "\$ALLOC" && "\$ALLOC" != "None" ]]; then
-  IID=\$(curl -fsS -H "X-aws-ec2-metadata-token: \$(curl -fsS -X PUT \
-    http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 60')" \
-    http://169.254.169.254/latest/meta-data/instance-id)
-  CURRENT=\$(aws ec2 describe-addresses --allocation-ids "\$ALLOC" --region "${REGION}" \
-    --query 'Addresses[0].InstanceId' --output text 2>/dev/null || true)
-  if [[ "\$CURRENT" != "\$IID" ]]; then
-    echo "Re-associating Elastic IP \$ALLOC with \$IID ..."
-    aws ec2 associate-address --allocation-id "\$ALLOC" --instance-id "\$IID" --region "${REGION}" || true
+COMPOSE="docker compose -f docker-compose.prod.yml --env-file \$APP_DIR/.env"
+
+echo "Building images (existing containers keep serving traffic) ..."
+\$COMPOSE build api nginx
+
+echo "Recreating API container ..."
+\$COMPOSE up -d --no-build --force-recreate api
+
+echo "Waiting for \$HEALTH_URL (timeout \${HEALTH_TIMEOUT_SEC}s) ..."
+deadline=\$(( \$(date +%s) + HEALTH_TIMEOUT_SEC ))
+while [[ \$(date +%s) -lt \$deadline ]]; do
+  if curl -sf "\$HEALTH_URL" >/dev/null 2>&1; then
+    echo "Health check OK."
+    break
   fi
+  sleep 2
+done
+if ! curl -sf "\$HEALTH_URL" >/dev/null 2>&1; then
+  echo "ERROR: timed out waiting for \$HEALTH_URL"
+  \$COMPOSE ps
+  docker logs wgs-api --tail 80 2>&1 || true
+  exit 1
 fi
+
+echo "Updating nginx (recreates only if image changed) ..."
+\$COMPOSE up -d --no-build nginx
+
+\$COMPOSE ps
 REMOTE
 
 B64=$(base64 < "$TMP/remote-deploy.sh" | tr -d '\n')
@@ -123,6 +187,7 @@ for _ in $(seq 1 90); do
       --region "$REGION"
     exit 1
   fi
+  echo "  SSM deploy in progress... status=${STATUS} (poll ${_}/90)"
   sleep 10
 done
 

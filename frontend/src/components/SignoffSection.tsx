@@ -10,6 +10,7 @@ import {
 } from '../lib/labels';
 import { createSignoff, downloadStatusReportPdf } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { randomId } from '../lib/randomId';
 import { formatDate } from '../lib/labels';
 
 interface SignoffSectionProps {
@@ -81,7 +82,7 @@ export function InventorySignoffPanel({ project, onSignoff, isDemo }: SignoffSec
     try {
       if (isDemo) {
         onSignoff?.({
-          id: crypto.randomUUID(),
+          id: randomId(),
           projectId: project.id,
           signoffType: 'inventory',
           signerRole: role,
@@ -201,7 +202,7 @@ export function PieceMilestoneSignoffs({ project, piece, onSignoff, isDemo }: Si
     try {
       if (isDemo) {
         onSignoff?.({
-          id: crypto.randomUUID(),
+          id: randomId(),
           projectId: project.id,
           pieceId: piece.id,
           signoffType: 'milestone',

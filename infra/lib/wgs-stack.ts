@@ -7,6 +7,7 @@ import * as rds from 'aws-cdk-lib/aws-rds';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import { Construct } from 'constructs';
+import { SiteMonitor } from './site-monitor';
 
 export class WgsStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -255,5 +256,32 @@ export class WgsStack extends cdk.Stack {
       value: `aws ssm start-session --target ${instance.instanceId} --region ${this.region}`,
       description: 'Connect via Session Manager (no SSH key needed)',
     });
+
+    // --- Site uptime monitoring (SNS + scheduled Lambda health check) ---
+    const enableSiteMonitor =
+      this.node.tryGetContext('enableSiteMonitor') !== 'false';
+    const alertEmail =
+      (this.node.tryGetContext('alertEmail') as string | undefined) ??
+      process.env.ALERT_EMAIL;
+    const alertPhone =
+      (this.node.tryGetContext('alertPhone') as string | undefined) ??
+      process.env.ALERT_PHONE;
+    const monitorUrlOverride = this.node.tryGetContext('monitorUrl') as
+      | string
+      | undefined;
+    const monitorScheduleMinutes = Number(
+      this.node.tryGetContext('monitorScheduleMinutes') ?? 5,
+    );
+
+    if (enableSiteMonitor) {
+      new SiteMonitor(this, 'SiteMonitor', {
+        appName,
+        monitorUrl:
+          monitorUrlOverride ?? `http://${eip.ref}/api/health`,
+        alertEmail: alertEmail || undefined,
+        alertPhone: alertPhone || undefined,
+        scheduleMinutes: monitorScheduleMinutes,
+      });
+    }
   }
 }

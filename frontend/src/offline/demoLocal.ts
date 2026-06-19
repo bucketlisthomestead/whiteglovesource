@@ -1,6 +1,7 @@
 import type { Project, Piece, PieceEventForm, PhotoMilestone, ProjectPhase } from '../types';
 import { STAGE_PHASE } from '../lib/labels';
 import { STAGE_TO_PHOTO_MILESTONE } from '../lib/labels';
+import { randomId } from '../lib/randomId';
 
 export function recalcProjectStats(project: Project): Project {
   const pieces = project.pieces ?? [];
@@ -48,7 +49,7 @@ export function applyDemoPieceUpdate(
   if (photoMilestone && photoUrl) {
     const idx = stagePhotos.findIndex((p) => p.milestone === photoMilestone);
     const entry = {
-      id: idx >= 0 ? stagePhotos[idx].id : crypto.randomUUID(),
+      id: idx >= 0 ? stagePhotos[idx].id : randomId(),
       pieceId: piece.id,
       milestone: photoMilestone as PhotoMilestone,
       photoUrl,

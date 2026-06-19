@@ -4,6 +4,10 @@
 # Usage:
 #   ./deploy/scripts/promote-candidate.sh [--terminate-old]
 #
+# Only run after verify-candidate.sh (or blue-green health wait) succeeds.
+# Expect a brief EIP reassociation blip (~seconds); the old instance serves
+# until disassociation, then the candidate receives live traffic.
+#
 # Keeps the previous active instance stopped by default (rollback: restart + EIP swap back).
 set -euo pipefail
 
