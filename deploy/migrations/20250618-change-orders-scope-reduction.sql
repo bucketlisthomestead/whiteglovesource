@@ -13,6 +13,27 @@ ALTER TABLE quote_requests ADD COLUMN creditLineItems JSON NULL;
 -- Piece catalogue link for scope reduction pricing
 ALTER TABLE pieces ADD COLUMN catalogItemId VARCHAR(36) NULL;
 
+-- Label scan tokens (QR check-in)
+ALTER TABLE pieces ADD COLUMN scanToken VARCHAR(16) NULL;
+CREATE UNIQUE INDEX IDX_pieces_scanToken ON pieces (scanToken);
+
+CREATE TABLE IF NOT EXISTS project_label_pdfs (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  projectId VARCHAR(36) NOT NULL,
+  version INT NOT NULL,
+  storageKey VARCHAR(512) NOT NULL,
+  templateId VARCHAR(64) NOT NULL,
+  pieceCount INT NOT NULL,
+  jobNumber VARCHAR(32) NOT NULL,
+  printedAt VARCHAR(64) NOT NULL,
+  filename VARCHAR(255) NOT NULL,
+  createdByUserId VARCHAR(36) NULL,
+  createdByName VARCHAR(255) NULL,
+  createdAt DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  INDEX IDX_project_label_pdfs_project (projectId),
+  CONSTRAINT FK_project_label_pdfs_project FOREIGN KEY (projectId) REFERENCES projects(id) ON DELETE CASCADE
+);
+
 -- Contract amendments (revised contracts for change orders)
 CREATE TABLE IF NOT EXISTS contract_amendments (
   id VARCHAR(36) NOT NULL PRIMARY KEY,
