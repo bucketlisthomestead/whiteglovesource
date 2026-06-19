@@ -46,6 +46,7 @@ DB_PASSWORD=\$(wgs_env DB_PASSWORD)
 DB_DATABASE=\$(wgs_env DB_DATABASE)
 TMP="/tmp/wgs-migration-\$\$.sql"
 aws s3 cp "s3://${BUCKET}/${S3_KEY}" "\$TMP" --region "${REGION}"
+stmt=""
 while IFS= read -r line || [[ -n "\$line" ]]; do
   stmt="\${stmt}\${line}"$'\n'
   if [[ "\$line" =~ \;[[:space:]]*\$ ]]; then
