@@ -303,7 +303,9 @@ export function ProjectLabelsSection({
                       {label.roomName && (
                         <p className="label-room" style={previewStyles.room}>{label.roomName}</p>
                       )}
-                      <p className="label-date" style={previewStyles.date}>{printedAt}</p>
+                      {template.labelHeight >= 1.5 && (
+                        <p className="label-date" style={previewStyles.date}>{printedAt}</p>
+                      )}
                     </div>
                     <div className="label-qr">
                       {qr ? (
@@ -357,8 +359,11 @@ export function ProjectLabelsSection({
               -webkit-box-orient: vertical;
             }
             .label-room {
-              color: #666;
+              color: #505050;
               margin: 0 0 2px;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
             }
             .label-date {
               color: #888;
@@ -391,7 +396,7 @@ function previewStylesFor(template: LabelSheetTemplate) {
     },
     job: { fontSize: h <= 1 ? '7pt' : h <= 2 ? '8pt' : '9pt' },
     name: { fontSize: h <= 1 ? '8pt' : h <= 2 ? '9pt' : '10pt' },
-    room: { fontSize: h <= 1 ? '7pt' : '8pt' },
+    room: { fontSize: h <= 1 ? '6pt' : '8pt' },
     date: { fontSize: '7pt' },
   };
 }

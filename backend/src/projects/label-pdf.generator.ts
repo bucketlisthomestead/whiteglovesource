@@ -208,10 +208,10 @@ export class LabelPdfGenerator {
       lineBreak: false,
     });
 
-    if (item.roomName && template.labelHeight >= 1.2) {
-      textY += inchesToPt(compact ? 0.1 : 0.12);
+    if (item.roomName) {
+      textY += inchesToPt(compact ? 0.08 : 0.12);
       doc.font('Helvetica');
-      doc.fontSize(compact ? 6.5 : 7.5);
+      doc.fontSize(compact ? 6 : 7.5);
       doc.fillColor('#505050');
       doc.text(truncateText(doc, item.roomName, textWidth), textX, textY, {
         width: textWidth,

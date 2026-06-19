@@ -77,10 +77,12 @@ function drawLabel(
   const name = truncateText(doc, item.pieceName, textWidth);
   doc.text(name, textX, textY, { maxWidth: textWidth });
 
-  if (item.roomName && template.labelHeight >= 1.2) {
-    textY += template.labelHeight <= 1.05 ? 0.1 : 0.12;
+  const compact = template.labelHeight <= 1.05;
+
+  if (item.roomName) {
+    textY += compact ? 0.08 : 0.12;
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(template.labelHeight <= 1.05 ? 6.5 : 7.5);
+    doc.setFontSize(compact ? 6 : 7.5);
     doc.setTextColor(80, 80, 80);
     doc.text(truncateText(doc, item.roomName, textWidth), textX, textY, { maxWidth: textWidth });
     doc.setTextColor(0, 0, 0);
