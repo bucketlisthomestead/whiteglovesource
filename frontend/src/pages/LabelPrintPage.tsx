@@ -28,7 +28,7 @@ interface LabelPrintPageProps {
   projectId?: string;
 }
 
-export function LabelPrintPage({ projectId }: LabelPrintPageProps = {}) {
+export function LabelPrintPage({ projectId }: LabelPrintPageProps) {
   const { id: routeId } = useParams<{ id: string }>();
   const id = projectId ?? routeId;
   const { user } = useAuth();
