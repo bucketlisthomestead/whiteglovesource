@@ -120,17 +120,25 @@ echo "Building images (existing containers keep serving traffic) ..."
 echo "Recreating API container ..."
 \$COMPOSE up -d --no-build --force-recreate api
 
-echo "Waiting for \$HEALTH_URL (timeout \${HEALTH_TIMEOUT_SEC}s) ..."
+api_health_ok() {
+  docker exec wgs-api node -e "
+    require('http').get('http://127.0.0.1:3000/api/health', (r) => {
+      process.exit(r.statusCode === 200 ? 0 : 1);
+    }).on('error', () => process.exit(1));
+  " 2>/dev/null
+}
+
+echo "Waiting for API health (timeout \${HEALTH_TIMEOUT_SEC}s) ..."
 deadline=\$(( \$(date +%s) + HEALTH_TIMEOUT_SEC ))
 while [[ \$(date +%s) -lt \$deadline ]]; do
-  if curl -sf "\$HEALTH_URL" >/dev/null 2>&1; then
-    echo "Health check OK."
+  if api_health_ok; then
+    echo "API health check OK."
     break
   fi
   sleep 2
 done
-if ! curl -sf "\$HEALTH_URL" >/dev/null 2>&1; then
-  echo "ERROR: timed out waiting for \$HEALTH_URL"
+if ! api_health_ok; then
+  echo "ERROR: timed out waiting for API health"
   \$COMPOSE ps
   docker logs wgs-api --tail 80 2>&1 || true
   exit 1
@@ -138,6 +146,22 @@ fi
 
 echo "Updating nginx (recreates only if image changed) ..."
 \$COMPOSE up -d --no-build nginx
+
+echo "Waiting for \$HEALTH_URL via nginx ..."
+deadline=\$(( \$(date +%s) + 60 ))
+while [[ \$(date +%s) -lt \$deadline ]]; do
+  if curl -sf "\$HEALTH_URL" >/dev/null 2>&1; then
+    echo "Nginx health check OK."
+    break
+  fi
+  sleep 2
+done
+if ! curl -sf "\$HEALTH_URL" >/dev/null 2>&1; then
+  echo "ERROR: timed out waiting for \$HEALTH_URL"
+  \$COMPOSE ps
+  docker logs wgs-nginx --tail 40 2>&1 || true
+  exit 1
+fi
 
 \$COMPOSE ps
 REMOTE
